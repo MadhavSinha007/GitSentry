@@ -5,6 +5,7 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <regex>
+#include <cctype>
 
 Scanner::Scanner(const std::string& cfgPath) {
     std::ifstream f(cfgPath);
@@ -37,3 +38,49 @@ int Scanner::scoreResult(const std::string& line,
     return score;
 }
 
+
+int Scanner::run(bool fullScan){
+
+    std::string diff = fullScan
+    ? runCommand("git diff --cached")
+    : runCommand("git diff --cached --unified=0");
+
+
+    auto results = scanDiff(diff);
+    if(results.empty()) {
+        std::cout << "[GitSentry] No potential secrets detected. Safe to commit.\n";
+        return 0;
+    }
+
+    std::cerr << "\n[GitSentry] BLOCKED: secrets detected in staged changes:\n";
+    for(auto& r : results){
+        std::cerr<< " " << r.file << ":" << r.lineNum 
+        << "  [" << r.patternName << "]\n " <<
+        "  " << r.masked << "\n\n";
+    }
+
+    return 1; //non-zero exit code to block commit
+}
+
+std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
+    std::vector<DetectionResult> results;
+    std::string currentFile;
+    int lineNum = 0;
+    for (auto& line : splitLines(diff)) {
+        if (line.rfind("+++ b/", 0) == 0) {
+            currentFile = line.substr(6);
+            lineNum = 0;
+        } else if (line.size() > 0 && line[0] == '+' && line[1] != '+') {
+            ++lineNum;
+            // pre-filter: skip lines without alphanumeric runs
+            bool hasCandidate = false;
+            for (char c : line) if (std::isalnum((unsigned char)c))
+                { hasCandidate = true; break; }
+            if (!hasCandidate) continue;
+
+            auto hits = scanLine(currentFile, lineNum, line.substr(1));
+            results.insert(results.end(), hits.begin(), hits.end());
+        }
+    }
+    return results;
+}
