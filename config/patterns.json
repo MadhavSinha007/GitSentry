@@ -1,0 +1,28 @@
+{
+  "entropy_threshold": 4.5,
+  "min_string_length": 16,
+  "ignore_paths": ["tests/", "node_modules/", ".git/"],
+  "patterns": [
+    {
+      "name": "AWS Access Key",
+      "regex": "AKIA[0-9A-Z]{16}",
+      "confidence": 90,
+      "description": "AWS access key ID"
+    },
+    {
+      "name": "GitHub Token",
+      "regex": "ghp_[A-Za-z0-9]{36}",
+      "confidence": 95
+    },
+    {
+      "name": "Stripe Secret Key",
+      "regex": "sk_live_[0-9a-zA-Z]{24}",
+      "confidence": 90
+    },
+    {
+      "name": "Generic API Key",
+      "regex": "[aA][pP][iI][_-]?[kK][eE][yY][\\\\s]*[=:][\\\\s]*['\\\\\"]?[A-Za-z0-9_\\\\-]{20,}",
+      "confidence": 70
+    }
+  ]
+}
