@@ -1,3 +1,4 @@
+// src/cli.cpp  (installHooks excerpt)
 #include "cli.h"
 #include <fstream>
 #include <iostream>
@@ -16,22 +17,45 @@ static void writeHook(const std::string& path, const std::string& body) {
 }
 
 int CLI::installHooks() {
+    namespace fs = std::filesystem;
+
+    if (!fs::exists(".git")) {
+        std::cerr << "[GitSentry] ERROR: Not a git repository.\n";
+        return 1;
+    }
+
+    fs::create_directories(".git/hooks");
+
     writeHook(".git/hooks/pre-commit",
         "#!/bin/sh\nGitSentry scan\n");
+
     writeHook(".git/hooks/pre-push",
         "#!/bin/sh\nGitSentry scan --full\n");
+
     std::cout << "[GitSentry] Hooks installed.\n";
     return 0;
 }
 
-int CLI::uninstallHooks(){
-    std::filesystem::remove(".git/hooks/pre-commit");
-    std::filesystem::remove("./git/hooks/pre-push");
-    std::cout<< "[GitSentry] Hooks removed.\n";
+
+int CLI::uninstallHooks() {
+    namespace fs = std::filesystem;
+
+    fs::remove(".git/hooks/pre-commit");
+    fs::remove(".git/hooks/pre-push");
+
+    std::cout << "[GitSentry] Hooks removed.\n";
     return 0;
 }
 
-int CLI::showConfig(){
-    std::cout << "[GitSentry] Config: config/patterns.json\n";
+
+int CLI::showConfig() {
+    std::ifstream f("config/patterns.json");
+
+    if (!f.is_open()) {
+        std::cerr << "[GitSentry] Could not open config.\n";
+        return 1;
+    }
+
+    std::cout << f.rdbuf();
     return 0;
 }

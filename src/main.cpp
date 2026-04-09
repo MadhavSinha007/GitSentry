@@ -1,11 +1,27 @@
 #include <iostream>
 #include <string>
+#include <filesystem>
 #include "cli.h"
 #include "scanner.h"
 
+std::string resolveConfigPath() {
+    namespace fs = std::filesystem;
+
+    // 1. Local repo config
+    if (fs::exists("config/patterns.json"))
+        return "config/patterns.json";
+
+    // 2. Global install config (FIXED NAME)
+    if (fs::exists("/usr/local/share/GitSentry/patterns.json"))
+        return "/usr/local/share/GitSentry/patterns.json";
+
+    std::cerr << "[GitSentry] ERROR: Config file not found!\n";
+    exit(1);
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cout << "Usage: GitSentry <command>\n"
+        std::cout << "Usage:  <command>\n"
                   << "  install     Install git hooks\n"
                   << "  uninstall   Remove git hooks\n"
                   << "  scan        Scan staged changes\n"
@@ -22,7 +38,10 @@ int main(int argc, char* argv[]) {
 
     if (cmd == "scan") {
         bool full = (argc > 2 && std::string(argv[2]) == "--full");
-        Scanner scanner("config/patterns.json");
+
+        std::string configPath = resolveConfigPath();  // ✅ FIXED
+        Scanner scanner(configPath);
+
         return scanner.run(full);
     }
 
