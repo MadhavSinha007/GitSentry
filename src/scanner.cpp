@@ -10,7 +10,7 @@
 #include <cstring>
 #include <filesystem>
 #include <future>
-
+#include <algorithm>
 
 // Constructor — load config + compile patterns
 Scanner::Scanner(const std::string& cfgPath) {
@@ -38,8 +38,10 @@ Scanner::Scanner(const std::string& cfgPath) {
         try {
             patterns_.push_back({
                 p["name"].get<std::string>(),
-                std::regex(p["regex"].get<std::string>(),
-                           std::regex::ECMAScript | std::regex::optimize),
+                std::regex(
+                    p["regex"].get<std::string>(),
+                    std::regex::ECMAScript | std::regex::optimize
+                ),
                 p["confidence"].get<int>()
             });
         } catch (const std::regex_error& e) {
@@ -58,12 +60,20 @@ int Scanner::scoreResult(const std::string& line,
     for (char& c : low) c = std::tolower((unsigned char)c);
 
     // +10 if variable name suggests it's a secret
-    for (auto& kw : {"key", "token", "secret", "password", "credential", "auth", "api"})
-        if (low.find(kw) != std::string::npos) { score += 10; break; }
+    for (auto& kw : {"key", "token", "secret", "password", "credential", "auth", "api"}) {
+        if (low.find(kw) != std::string::npos) {
+            score += 10;
+            break;
+        }
+    }
 
     // -20 if line looks like test/example data
-    for (auto& kw : {"test", "example", "dummy", "fake", "placeholder", "sample", "mock", "your_"})
-        if (low.find(kw) != std::string::npos) { score -= 20; break; }
+    for (auto& kw : {"test", "example", "dummy", "fake", "placeholder", "sample", "mock", "your_"}) {
+        if (low.find(kw) != std::string::npos) {
+            score -= 20;
+            break;
+        }
+    }
 
     // +15 if the matched string has high entropy (looks random)
     if (entropy >= entropyThreshold_) score += 15;
@@ -116,8 +126,7 @@ int Scanner::run(bool fullScan) {
     return 1;
 }
 
-
-// scanDiff() — BUG FIX: real line numbers from @@ hunk headers, not relative counter
+// scanDiff() — real line numbers from @@ hunk headers
 std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
     std::vector<DetectionResult> results;
     std::string currentFile;
@@ -128,7 +137,6 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
     std::regex hunkHeader(R"(^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@)");
 
     for (auto& line : splitLines(diff)) {
-
         // Track current file
         if (line.rfind("+++ b/", 0) == 0) {
             currentFile = line.substr(6);
@@ -140,7 +148,6 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
         if (line.rfind("--- ", 0) == 0) continue;
 
         // Extract real line number from hunk header
-        // e.g. "@@ -1,3 +5,8 @@" → lineNum starts at 5
         std::smatch m;
         if (std::regex_search(line, m, hunkHeader)) {
             lineNum = std::stoi(m[1].str()) - 1; // -1 because we ++ before use
@@ -155,8 +162,12 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
 
             // Pre-filter: skip lines with no alphanumeric chars
             bool hasCandidate = false;
-            for (char c : line)
-                if (std::isalnum((unsigned char)c)) { hasCandidate = true; break; }
+            for (char c : line) {
+                if (std::isalnum((unsigned char)c)) {
+                    hasCandidate = true;
+                    break;
+                }
+            }
             if (!hasCandidate) continue;
 
             auto hits = scanLine(currentFile, lineNum, line.substr(1));
@@ -193,7 +204,6 @@ std::vector<DetectionResult> Scanner::scanFile(const std::string& path) {
 }
 
 // scanLine() — core detection per line
-//   FIX: score threshold filter + early exit
 std::vector<DetectionResult> Scanner::scanLine(
     const std::string& file, int lineNum, const std::string& line) {
 
@@ -206,8 +216,9 @@ std::vector<DetectionResult> Scanner::scanLine(
 
         std::string found = match.str();
 
-        // Skip short or non-alphanumeric-heavy matches (reduces false positives)
-        if (!isAlphanumericHeavy(found)) continue;
+        // For low-confidence / generic patterns, require token-like structure.
+        // For high-confidence known-secret regexes, trust the regex match itself.
+        if (pat.confidence < 80 && !isAlphanumericHeavy(found)) continue;
 
         double entropy = shannonEntropy(found);
         int score = scoreResult(line, pat.confidence, entropy);
@@ -215,12 +226,7 @@ std::vector<DetectionResult> Scanner::scanLine(
         // Ignore very low confidence results
         if (score < 50) continue;
 
-        // Mask the secret: show first 4 + **** + last 2 chars
-        std::string masked;
-        if (found.length() > 8)
-            masked = found.substr(0, 4) + "****" + found.substr(found.length() - 2);
-        else
-            masked = "****";
+        std::string masked = maskSecret(found);
 
         results.push_back({ file, lineNum, pat.name, masked, score });
 
@@ -231,9 +237,7 @@ std::vector<DetectionResult> Scanner::scanLine(
     return results;
 }
 
-
 // scanRepo() — parallel full-repo scan
-//   FIX: skip binary files, skip .git folder
 std::vector<DetectionResult> Scanner::scanRepo() {
     namespace fs = std::filesystem;
 

@@ -1,5 +1,5 @@
 {
-  "entropy_threshold": 4.5,
+  "entropy_threshold": 3.5,
   "min_string_length": 16,
   "ignore_paths": ["tests/", "node_modules/", ".git/"],
   "patterns": [
