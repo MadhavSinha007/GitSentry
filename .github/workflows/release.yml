@@ -1,3 +1,4 @@
+cat > .github/workflows/release.yml << 'EOF'
 name: Release
 
 on:
@@ -40,11 +41,15 @@ jobs:
             ## GitSentry ${{ github.ref_name }}
 
             ### Install
-```bash
+
+            Download and install with these commands:
+
             curl -sSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/GitSentry-linux-x86_64.tar.gz | tar xz
             sudo mv GitSentry /usr/local/bin/
             sudo mkdir -p /usr/local/share/GitSentry
             sudo mv patterns.json /usr/local/share/GitSentry/
-```
+
+            Then inside any git repo run: GitSentry install
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+EOF
