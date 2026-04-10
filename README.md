@@ -352,7 +352,7 @@ sudo make uninstall
 - [x] Phase 2 — Regex + entropy detection engine
 - [x] Phase 3 — Multithreaded parallel scanning
 - [x] Phase 4 — Scoring system, false positive filtering, tests
-- [ ] Phase 5 — GitHub Actions / CI integration
+- [x] Phase 5 — GitHub Actions / CI integration
 - [ ] Phase 6 — AI-based detection
 - [ ] Phase 7 — Dashboard UI
 
