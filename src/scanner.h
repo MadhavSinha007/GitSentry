@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include <regex>
-#include "nlohmann/json.hpp"
+#include "json.hpp"
 
 struct DetectionResult {
     std::string file;
