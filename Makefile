@@ -4,23 +4,30 @@ TARGET   = GitSentry
 SRCS     = $(wildcard src/*.cpp)
 
 PREFIX   ?= /usr/local
-SHAREDIR = $(PREFIX)/share/GitSentry
+BINDIR    = $(PREFIX)/bin
+SHAREDIR  = $(PREFIX)/share/GitSentry
 
 $(TARGET): $(SRCS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 install: $(TARGET)
-	@echo "[GitSentry] Installing binary..."
-	sudo cp $(TARGET) $(PREFIX)/bin/
+	@echo "[GitSentry] Installing binary to $(BINDIR)..."
+	sudo cp $(TARGET) $(BINDIR)/
 
-	@echo "[GitSentry] Installing config..."
+	@echo "[GitSentry] Installing config to $(SHAREDIR)..."
 	sudo mkdir -p $(SHAREDIR)
-	sudo cp config/patterns.json $(SHAREDIR)/
+	sudo cp config/patterns.json $(SHAREDIR)/patterns.json
 
-	@echo "[GitSentry] Installing hooks..."
-	sudo $(PREFIX)/bin/GitSentry install
+	@echo "[GitSentry] Done. Run 'GitSentry install' inside any git repo."
+
+uninstall:
+	@echo "[GitSentry] Removing binary..."
+	sudo rm -f $(BINDIR)/$(TARGET)
+	@echo "[GitSentry] Removing config..."
+	sudo rm -rf $(SHAREDIR)
+	@echo "[GitSentry] Uninstalled."
 
 clean:
 	rm -f $(TARGET)
 
-.PHONY: install clean
+.PHONY: install uninstall clean

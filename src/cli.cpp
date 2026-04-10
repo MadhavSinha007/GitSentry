@@ -37,13 +37,17 @@ int CLI::installHooks() {
 }
 
 
+
 int CLI::uninstallHooks() {
     namespace fs = std::filesystem;
 
-    fs::remove(".git/hooks/pre-commit");
-    fs::remove(".git/hooks/pre-push");
+    if (fs::exists(".git/hooks/pre-commit"))
+        fs::remove(".git/hooks/pre-commit");
 
-    std::cout << "[GitSentry] Hooks removed.\n";
+    if (fs::exists(".git/hooks/pre-push"))
+        fs::remove(".git/hooks/pre-push");
+
+    std::cout << "[GitSentry] hooks removed from project\n";
     return 0;
 }
 

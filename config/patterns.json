@@ -22,7 +22,7 @@
     {
       "name": "Generic API Key",
       "regex": "[aA][pP][iI][_-]?[kK][eE][yY][\\\\s]*[=:][\\\\s]*['\\\\\"]?[A-Za-z0-9_\\\\-]{20,}",
-      "confidence": 70
+      "confidence": 50
     }
   ]
 }
