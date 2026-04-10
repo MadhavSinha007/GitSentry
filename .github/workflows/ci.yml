@@ -1,0 +1,83 @@
+name: GitSentry CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get install -y g++ make
+
+      - name: Download nlohmann/json
+        run: |
+          mkdir -p third_party
+          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
+            -o third_party/json.hpp
+
+      - name: Build
+        run: make
+
+      - name: Verify
+        run: ./GitSentry --version
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitSentry-binary
+          path: GitSentry
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download nlohmann/json
+        run: |
+          mkdir -p third_party
+          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
+            -o third_party/json.hpp
+
+      - name: Compile tests
+        run: |
+          g++ -std=c++17 -Ithird_party \
+              tests/test_scanner.cpp \
+              src/entropy.cpp \
+              src/utils.cpp \
+              -o test_runner
+
+      - name: Run tests
+        run: ./test_runner
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: GitSentry-binary
+
+      - name: Make executable
+        run: chmod +x GitSentry
+
+      - name: Download nlohmann/json
+        run: |
+          mkdir -p third_party
+          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
+            -o third_party/json.hpp
+
+      - name: Scan repo for secrets
+        run: ./GitSentry scan --full
