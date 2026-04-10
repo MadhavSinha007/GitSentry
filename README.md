@@ -1,3 +1,5 @@
+![CI](https://github.com/MadhavSinha007/GitSentry/actions/workflows/ci.yml/badge.svg)
+
 # GitSentry
 
 A high-performance CLI tool written in C++ that prevents sensitive credentials from being committed to Git repositories. GitSentry runs completely offline and integrates directly into your Git workflow via hooks.
