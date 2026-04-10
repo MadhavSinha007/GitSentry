@@ -2,9 +2,9 @@ name: GitSentry CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
   build:
@@ -19,8 +19,7 @@ jobs:
       - name: Download nlohmann/json
         run: |
           mkdir -p third_party
-          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
-            -o third_party/json.hpp
+          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp -o third_party/json.hpp
 
       - name: Build
         run: make
@@ -44,8 +43,7 @@ jobs:
       - name: Download nlohmann/json
         run: |
           mkdir -p third_party
-          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
-            -o third_party/json.hpp
+          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp -o third_party/json.hpp
 
       - name: Compile tests
         run: |
@@ -76,8 +74,7 @@ jobs:
       - name: Download nlohmann/json
         run: |
           mkdir -p third_party
-          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
-            -o third_party/json.hpp
+          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp -o third_party/json.hpp
 
       - name: Scan repo for secrets
         run: ./GitSentry scan --full

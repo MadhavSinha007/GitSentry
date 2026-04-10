@@ -1,4 +1,3 @@
-cat > .github/workflows/release.yml << 'EOF'
 name: Release
 
 on:
@@ -19,8 +18,7 @@ jobs:
       - name: Download nlohmann/json
         run: |
           mkdir -p third_party
-          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
-            -o third_party/json.hpp
+          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp -o third_party/json.hpp
 
       - name: Build release binary
         run: make
@@ -38,18 +36,11 @@ jobs:
         with:
           files: GitSentry-linux-x86_64.tar.gz
           body: |
-            ## GitSentry ${{ github.ref_name }}
-
-            ### Install
-
-            Download and install with these commands:
-
-            curl -sSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/GitSentry-linux-x86_64.tar.gz | tar xz
+            ## GitSentry Release
+            Install with these commands:
+            curl -sSL https://github.com/${{ github.repository }}/releases/latest/download/GitSentry-linux-x86_64.tar.gz | tar xz
             sudo mv GitSentry /usr/local/bin/
             sudo mkdir -p /usr/local/share/GitSentry
             sudo mv patterns.json /usr/local/share/GitSentry/
-
-            Then inside any git repo run: GitSentry install
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-EOF
