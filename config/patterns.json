@@ -1,13 +1,12 @@
 {
-  "entropy_threshold": 3.5,
+  "entropy_threshold": 4.5,
   "min_string_length": 16,
   "ignore_paths": ["tests/", "node_modules/", ".git/"],
   "patterns": [
     {
       "name": "AWS Access Key",
       "regex": "AKIA[0-9A-Z]{16}",
-      "confidence": 90,
-      "description": "AWS access key ID"
+      "confidence": 90
     },
     {
       "name": "GitHub Token",
@@ -21,8 +20,39 @@
     },
     {
       "name": "Generic API Key",
-      "regex": "[aA][pP][iI][_-]?[kK][eE][yY][\\\\s]*[=:][\\\\s]*['\\\\\"]?[A-Za-z0-9_\\\\-]{20,}",
+      "regex": "[aA][pP][iI][_-]?[kK][eE][yY][\\s]*[=:][\\s]*['\"]?[A-Za-z0-9_\\-]{20,}",
       "confidence": 50
+    },
+
+    {
+      "name": "Google API Key",
+      "regex": "AIza[0-9A-Za-z\\-_]{35}",
+      "confidence": 90
+    },
+    {
+      "name": "Slack Token",
+      "regex": "xox[baprs]-[0-9a-zA-Z]{10,48}",
+      "confidence": 90
+    },
+    {
+      "name": "JWT Token",
+      "regex": "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}",
+      "confidence": 80
+    },
+    {
+      "name": "Private Key",
+      "regex": "-----BEGIN (RSA|EC) PRIVATE KEY",
+      "confidence": 95
+    },
+    {
+      "name": "Database URL",
+      "regex": "postgres://[^\\s]+",
+      "confidence": 85
+    },
+    {
+      "name": "Discord Token",
+      "regex": "[MN][A-Za-z0-9]{23}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27}",
+      "confidence": 85
     }
   ]
 }
