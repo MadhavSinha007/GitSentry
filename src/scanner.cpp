@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <future>
 #include <algorithm>
+#include <chrono>
 
 // Load extra ignore paths from .gitsentryignore
 static std::vector<std::string> loadIgnoreFile() {
@@ -37,10 +38,8 @@ static std::vector<std::string> buildIgnoreList(const nlohmann::json& config) {
         ignores = config["ignore_paths"].get<std::vector<std::string>>();
     }
 
-    // Always ignore .git internals
     ignores.push_back(".git/");
 
-    // Merge .gitsentryignore
     auto fileIgnores = loadIgnoreFile();
     ignores.insert(ignores.end(), fileIgnores.begin(), fileIgnores.end());
 
@@ -115,32 +114,52 @@ int Scanner::scoreResult(const std::string& line,
 
 // run() — entry point for scan / scan --full
 int Scanner::run(bool fullScan, bool jsonOutput) {
+    auto start = std::chrono::high_resolution_clock::now();
+
+    int filesScanned = 0;
+    int linesScanned = 0;
     std::vector<DetectionResult> results;
 
     if (fullScan) {
         if (!jsonOutput)
             std::cout << "[GitSentry] Scanning entire repository...\n";
-        results = scanRepo();
+        results = scanRepo(filesScanned, linesScanned);
     } else {
         std::string diff = runCommand("git diff --cached --unified=0");
         if (diff.empty()) {
+            auto end = std::chrono::high_resolution_clock::now();
+            double ms = std::chrono::duration<double, std::milli>(end - start).count();
+
             if (jsonOutput) {
                 std::cout << "{\n"
                           << "  \"status\": \"clean\",\n"
-                          << "  \"secrets\": []\n"
+                          << "  \"secrets\": [],\n"
+                          << "  \"summary\": {\n"
+                          << "    \"files_scanned\": 0,\n"
+                          << "    \"lines_scanned\": 0,\n"
+                          << "    \"time_seconds\": " << (ms / 1000.0) << "\n"
+                          << "  }\n"
                           << "}\n";
             } else {
-                std::cout << "[GitSentry] No staged changes to scan.\n";
+                std::cout << "[GitSentry] No staged changes to scan.\n\n"
+                          << "[GitSentry] Scan complete\n"
+                          << "  Files scanned:  0\n"
+                          << "  Lines scanned:  0\n"
+                          << "  Time taken:     " << (ms / 1000.0) << "s\n"
+                          << "  Secrets found:  0\n\n";
             }
             return 0;
         }
-        results = scanDiff(diff);
+        results = scanDiff(diff, filesScanned, linesScanned);
     }
 
     std::sort(results.begin(), results.end(),
         [](const DetectionResult& a, const DetectionResult& b) {
             return a.file == b.file ? a.line < b.line : a.file < b.file;
         });
+
+    auto end = std::chrono::high_resolution_clock::now();
+    double ms = std::chrono::duration<double, std::milli>(end - start).count();
 
     if (jsonOutput) {
         std::cout << "{\n"
@@ -158,40 +177,54 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
                       << "    }" << (i + 1 < results.size() ? "," : "") << "\n";
         }
 
-        std::cout << "  ]\n}\n";
+        std::cout << "  ],\n"
+                  << "  \"summary\": {\n"
+                  << "    \"files_scanned\": " << filesScanned << ",\n"
+                  << "    \"lines_scanned\": " << linesScanned << ",\n"
+                  << "    \"time_seconds\": " << (ms / 1000.0) << "\n"
+                  << "  }\n"
+                  << "}\n";
+
         return results.empty() ? 0 : 1;
     }
 
     if (results.empty()) {
         std::cout << green("[GitSentry] No secrets detected. Safe to commit.\n");
-        return 0;
-    }
+    } else {
+        std::cerr << red("\n[GitSentry] BLOCKED — potential secrets detected:\n\n");
 
-    std::cerr << red("\n[GitSentry] BLOCKED — potential secrets detected:\n\n");
-
-    std::string lastFile;
-    for (auto& r : results) {
-        if (r.file != lastFile) {
-            std::cerr << bold("  " + r.file + "\n");
-            lastFile = r.file;
+        std::string lastFile;
+        for (auto& r : results) {
+            if (r.file != lastFile) {
+                std::cerr << bold("  " + r.file + "\n");
+                lastFile = r.file;
+            }
+            std::cerr << yellow("    Line " + std::to_string(r.line))
+                      << "  [" << r.patternName << "]"
+                      << "  score=" << r.score << "\n"
+                      << "    " << r.masked << "\n\n";
         }
-        std::cerr << yellow("    Line " + std::to_string(r.line))
-                  << "  [" << r.patternName << "]"
-                  << "  score=" << r.score << "\n"
-                  << "    " << r.masked << "\n\n";
+
+        std::cerr << "[GitSentry] Commit blocked. Fix the above before committing.\n";
     }
 
-    std::cerr << "[GitSentry] Commit blocked. Fix the above before committing.\n";
-    return 1;
+    std::cout << "\n[GitSentry] Scan complete\n"
+              << "  Files scanned:  " << filesScanned << "\n"
+              << "  Lines scanned:  " << linesScanned << "\n"
+              << "  Time taken:     " << (ms / 1000.0) << "s\n"
+              << "  Secrets found:  " << results.size() << "\n\n";
+
+    return results.empty() ? 0 : 1;
 }
 
 // scanDiff() — real line numbers from @@ hunk headers
-std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
+std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff, int& filesScanned, int& linesScanned) {
     std::vector<DetectionResult> results;
     std::vector<std::string> ignores = buildIgnoreList(config_);
 
     std::string currentFile;
     int lineNum = 0;
+    bool currentFileCounted = false;
 
     std::regex hunkHeader(R"(^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@)");
 
@@ -199,6 +232,7 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
         if (line.rfind("+++ b/", 0) == 0) {
             currentFile = line.substr(6);
             lineNum = 0;
+            currentFileCounted = false;
 
             if (pathMatchesIgnore(currentFile, ignores)) {
                 currentFile.clear();
@@ -220,6 +254,12 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
 
         if (line[0] == '+' && (line.size() < 2 || line[1] != '+')) {
             ++lineNum;
+            ++linesScanned;
+
+            if (!currentFileCounted) {
+                ++filesScanned;
+                currentFileCounted = true;
+            }
 
             bool hasCandidate = false;
             for (char c : line) {
@@ -244,21 +284,29 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
 }
 
 // scanFile() — used by scanRepo() (full scan)
-std::vector<DetectionResult> Scanner::scanFile(const std::string& path) {
+ScanStatsResult Scanner::scanFile(const std::string& path) {
     std::ifstream f(path);
     if (!f) return {};
 
-    std::vector<DetectionResult> results;
+    ScanStatsResult result;
+    result.filesScanned = 1;
+
     std::string line;
     int lineNum = 0;
 
     while (std::getline(f, line)) {
         ++lineNum;
+        ++result.linesScanned;
+
         auto hits = scanLine(path, lineNum, line);
-        results.insert(results.end(), hits.begin(), hits.end());
+        result.detections.insert(
+            result.detections.end(),
+            hits.begin(),
+            hits.end()
+        );
     }
 
-    return results;
+    return result;
 }
 
 // scanLine() — core detection per line
@@ -292,14 +340,14 @@ std::vector<DetectionResult> Scanner::scanLine(
 }
 
 // scanRepo() — parallel full-repo scan
-std::vector<DetectionResult> Scanner::scanRepo() {
+std::vector<DetectionResult> Scanner::scanRepo(int& filesScanned, int& linesScanned) {
     namespace fs = std::filesystem;
 
     size_t threads = std::thread::hardware_concurrency();
     if (threads == 0) threads = 4;
 
     ThreadPool pool(threads);
-    std::vector<std::future<std::vector<DetectionResult>>> futures;
+    std::vector<std::future<ScanStatsResult>> futures;
 
     std::vector<std::string> ignores = buildIgnoreList(config_);
 
@@ -311,7 +359,6 @@ std::vector<DetectionResult> Scanner::scanRepo() {
         std::string path = entry.path().string();
 
         if (pathMatchesIgnore(path, ignores)) continue;
-
         if (entry.file_size() > 1'000'000) continue;
 
         {
@@ -323,15 +370,20 @@ std::vector<DetectionResult> Scanner::scanRepo() {
                 continue;
         }
 
-        futures.push_back(pool.enqueue([this, path]() {
+        futures.push_back(pool.enqueue([this, path]() -> ScanStatsResult {
             return scanFile(path);
         }));
     }
 
     std::vector<DetectionResult> all;
+
     for (auto& f : futures) {
         auto res = f.get();
-        all.insert(all.end(), res.begin(), res.end());
+
+        filesScanned += res.filesScanned;
+        linesScanned += res.linesScanned;
+
+        all.insert(all.end(), res.detections.begin(), res.detections.end());
     }
 
     return all;
