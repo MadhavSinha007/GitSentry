@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
@@ -12,16 +12,20 @@ jobs:
   release:
     name: Build and release
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: sudo apt-get install -y g++ make
+        run: sudo apt-get update && sudo apt-get install -y g++ make curl
 
       - name: Download nlohmann/json
         run: |
           mkdir -p third_party
-          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp -o third_party/json.hpp
+          curl -sSL \
+            https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
+            -o third_party/json.hpp
 
       - name: Build release binary
         run: make
@@ -40,10 +44,14 @@ jobs:
           files: GitSentry-linux-x86_64.tar.gz
           body: |
             ## GitSentry Release
-            Install with these commands:
+
+            Install with:
+
+            ```bash
             curl -sSL https://github.com/${{ github.repository }}/releases/latest/download/GitSentry-linux-x86_64.tar.gz | tar xz
             sudo mv GitSentry /usr/local/bin/
             sudo mkdir -p /usr/local/share/GitSentry
             sudo mv patterns.json /usr/local/share/GitSentry/
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

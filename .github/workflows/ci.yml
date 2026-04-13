@@ -2,29 +2,33 @@ name: GitSentry CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: sudo apt-get install -y g++ make
+        run: sudo apt-get update && sudo apt-get install -y g++ make curl
 
       - name: Download nlohmann/json
         run: |
           mkdir -p third_party
-          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp -o third_party/json.hpp
+          curl -sSL \
+            https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
+            -o third_party/json.hpp
 
       - name: Build
         run: make
 
-      - name: Verify
+      - name: Verify binary
         run: ./GitSentry --version
 
       - name: Upload binary
@@ -37,13 +41,20 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     needs: build
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y g++ make curl
 
       - name: Download nlohmann/json
         run: |
           mkdir -p third_party
-          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp -o third_party/json.hpp
+          curl -sSL \
+            https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
+            -o third_party/json.hpp
 
       - name: Compile tests
         run: |
@@ -60,21 +71,26 @@ jobs:
     name: Secret Scan
     runs-on: ubuntu-latest
     needs: build
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
           name: GitSentry-binary
 
-      - name: Make executable
+      - name: Make binary executable
         run: chmod +x GitSentry
 
-      - name: Download nlohmann/json
+      - name: Debug workspace
         run: |
-          mkdir -p third_party
-          curl -sSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp -o third_party/json.hpp
+          pwd
+          ls -la
+          ls -la config
 
       - name: Scan repo for secrets
+        env:
+          GITSENTRY_CONFIG: config/patterns.json
         run: ./GitSentry scan --full

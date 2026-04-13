@@ -1,13 +1,19 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
+#include <cstdlib>
 #include "cli.h"
 #include "scanner.h"
 
-// Resolve config path — check local first, then system-wide install
+// Resolve config path — env var first, then local, then system-wide install
 std::string resolveConfigPath()
 {
     namespace fs = std::filesystem;
+
+    if (const char* envPath = std::getenv("GITSENTRY_CONFIG")) {
+        if (fs::exists(envPath))
+            return envPath;
+    }
 
     if (fs::exists("config/patterns.json"))
         return "config/patterns.json";
