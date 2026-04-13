@@ -40,8 +40,8 @@ static std::vector<std::string> buildIgnoreList(const nlohmann::json& config) {
 
     ignores.push_back(".git/");
 
-    auto fileIgnores = loadIgnoreFile();
-    ignores.insert(ignores.end(), fileIgnores.begin(), fileIgnores.end());
+    auto extra = loadIgnoreFile();
+    ignores.insert(ignores.end(), extra.begin(), extra.end());
 
     return ignores;
 }
@@ -68,19 +68,21 @@ Scanner::Scanner(const std::string& cfgPath) {
 
     entropyThreshold_ = config_.value("entropy_threshold", 4.5);
 
-    for (auto& p : config_["patterns"]) {
-        try {
-            patterns_.push_back({
-                p["name"].get<std::string>(),
-                std::regex(
-                    p["regex"].get<std::string>(),
-                    std::regex::ECMAScript | std::regex::optimize
-                ),
-                p["confidence"].get<int>()
-            });
-        } catch (const std::regex_error& e) {
-            std::cerr << "[GitSentry] WARNING: bad regex for pattern '"
-                      << p["name"] << "': " << e.what() << " — skipping.\n";
+    if (config_.contains("patterns") && config_["patterns"].is_array()) {
+        for (auto& p : config_["patterns"]) {
+            try {
+                patterns_.push_back({
+                    p["name"].get<std::string>(),
+                    std::regex(
+                        p["regex"].get<std::string>(),
+                        std::regex::ECMAScript | std::regex::optimize
+                    ),
+                    p["confidence"].get<int>()
+                });
+            } catch (const std::regex_error& e) {
+                std::cerr << "[GitSentry] WARNING: bad regex for pattern '"
+                          << p["name"] << "': " << e.what() << " — skipping.\n";
+            }
         }
     }
 }
@@ -126,6 +128,7 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
         results = scanRepo(filesScanned, linesScanned);
     } else {
         std::string diff = runCommand("git diff --cached --unified=0");
+
         if (diff.empty()) {
             auto end = std::chrono::high_resolution_clock::now();
             double ms = std::chrono::duration<double, std::milli>(end - start).count();
@@ -150,6 +153,7 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
             }
             return 0;
         }
+
         results = scanDiff(diff, filesScanned, linesScanned);
     }
 
@@ -199,6 +203,7 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
                 std::cerr << bold("  " + r.file + "\n");
                 lastFile = r.file;
             }
+
             std::cerr << yellow("    Line " + std::to_string(r.line))
                       << "  [" << r.patternName << "]"
                       << "  score=" << r.score << "\n"
@@ -217,7 +222,7 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
     return results.empty() ? 0 : 1;
 }
 
-// scanDiff() — real line numbers from @@ hunk headers
+// scanDiff() — staged diff scan with stats
 std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff, int& filesScanned, int& linesScanned) {
     std::vector<DetectionResult> results;
     std::vector<std::string> ignores = buildIgnoreList(config_);
@@ -283,7 +288,7 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff, int& fil
     return results;
 }
 
-// scanFile() — used by scanRepo() (full scan)
+// scanFile() — scan one file and return local stats
 ScanStatsResult Scanner::scanFile(const std::string& path) {
     std::ifstream f(path);
     if (!f) return {};
@@ -299,11 +304,7 @@ ScanStatsResult Scanner::scanFile(const std::string& path) {
         ++result.linesScanned;
 
         auto hits = scanLine(path, lineNum, line);
-        result.detections.insert(
-            result.detections.end(),
-            hits.begin(),
-            hits.end()
-        );
+        result.detections.insert(result.detections.end(), hits.begin(), hits.end());
     }
 
     return result;
@@ -330,7 +331,6 @@ std::vector<DetectionResult> Scanner::scanLine(
         if (score < 50) continue;
 
         std::string masked = maskSecret(found);
-
         results.push_back({ file, lineNum, pat.name, masked, score });
 
         if (score > 90) return results;
@@ -339,7 +339,7 @@ std::vector<DetectionResult> Scanner::scanLine(
     return results;
 }
 
-// scanRepo() — parallel full-repo scan
+// scanRepo() — parallel full-repo scan with thread-safe stats
 std::vector<DetectionResult> Scanner::scanRepo(int& filesScanned, int& linesScanned) {
     namespace fs = std::filesystem;
 
@@ -348,7 +348,6 @@ std::vector<DetectionResult> Scanner::scanRepo(int& filesScanned, int& linesScan
 
     ThreadPool pool(threads);
     std::vector<std::future<ScanStatsResult>> futures;
-
     std::vector<std::string> ignores = buildIgnoreList(config_);
 
     for (auto& entry : fs::recursive_directory_iterator(
@@ -379,10 +378,8 @@ std::vector<DetectionResult> Scanner::scanRepo(int& filesScanned, int& linesScan
 
     for (auto& f : futures) {
         auto res = f.get();
-
         filesScanned += res.filesScanned;
         linesScanned += res.linesScanned;
-
         all.insert(all.end(), res.detections.begin(), res.detections.end());
     }
 
