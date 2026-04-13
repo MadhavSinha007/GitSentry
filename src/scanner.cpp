@@ -29,6 +29,24 @@ static std::vector<std::string> loadIgnoreFile() {
     return extra;
 }
 
+// Merge config ignores + .gitsentryignore + default ignores
+static std::vector<std::string> buildIgnoreList(const nlohmann::json& config) {
+    std::vector<std::string> ignores;
+
+    if (config.contains("ignore_paths") && config["ignore_paths"].is_array()) {
+        ignores = config["ignore_paths"].get<std::vector<std::string>>();
+    }
+
+    // Always ignore .git internals
+    ignores.push_back(".git/");
+
+    // Merge .gitsentryignore
+    auto fileIgnores = loadIgnoreFile();
+    ignores.insert(ignores.end(), fileIgnores.begin(), fileIgnores.end());
+
+    return ignores;
+}
+
 // Constructor — load config + compile patterns
 Scanner::Scanner(const std::string& cfgPath) {
     if (cfgPath.empty()) {
@@ -76,7 +94,6 @@ int Scanner::scoreResult(const std::string& line,
     std::string low = line;
     for (char& c : low) c = std::tolower((unsigned char)c);
 
-    // +10 if variable name suggests it's a secret
     for (auto& kw : {"key", "token", "secret", "password", "credential", "auth", "api"}) {
         if (low.find(kw) != std::string::npos) {
             score += 10;
@@ -84,7 +101,6 @@ int Scanner::scoreResult(const std::string& line,
         }
     }
 
-    // -20 if line looks like test/example data
     for (auto& kw : {"test", "example", "dummy", "fake", "placeholder", "sample", "mock", "your_"}) {
         if (low.find(kw) != std::string::npos) {
             score -= 20;
@@ -92,7 +108,6 @@ int Scanner::scoreResult(const std::string& line,
         }
     }
 
-    // +15 if the matched string has high entropy
     if (entropy >= entropyThreshold_) score += 15;
 
     return score;
@@ -122,7 +137,6 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
         results = scanDiff(diff);
     }
 
-    // Sort results by file then line number for stable output
     std::sort(results.begin(), results.end(),
         [](const DetectionResult& a, const DetectionResult& b) {
             return a.file == b.file ? a.line < b.line : a.file < b.file;
@@ -144,9 +158,7 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
                       << "    }" << (i + 1 < results.size() ? "," : "") << "\n";
         }
 
-        std::cout << "  ]\n"
-                  << "}\n";
-
+        std::cout << "  ]\n}\n";
         return results.empty() ? 0 : 1;
     }
 
@@ -176,6 +188,8 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
 // scanDiff() — real line numbers from @@ hunk headers
 std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
     std::vector<DetectionResult> results;
+    std::vector<std::string> ignores = buildIgnoreList(config_);
+
     std::string currentFile;
     int lineNum = 0;
 
@@ -185,6 +199,11 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
         if (line.rfind("+++ b/", 0) == 0) {
             currentFile = line.substr(6);
             lineNum = 0;
+
+            if (pathMatchesIgnore(currentFile, ignores)) {
+                currentFile.clear();
+            }
+
             continue;
         }
 
@@ -197,6 +216,7 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
         }
 
         if (line.empty()) continue;
+        if (currentFile.empty()) continue;
 
         if (line[0] == '+' && (line.size() < 2 || line[1] != '+')) {
             ++lineNum;
@@ -254,7 +274,6 @@ std::vector<DetectionResult> Scanner::scanLine(
 
         std::string found = match.str();
 
-        // For low-confidence / generic patterns, require token-like structure.
         if (pat.confidence < 80 && !isAlphanumericHeavy(found)) continue;
 
         double entropy = shannonEntropy(found);
@@ -282,13 +301,7 @@ std::vector<DetectionResult> Scanner::scanRepo() {
     ThreadPool pool(threads);
     std::vector<std::future<std::vector<DetectionResult>>> futures;
 
-    std::vector<std::string> ignores =
-        config_["ignore_paths"].get<std::vector<std::string>>();
-
-    ignores.push_back(".git/");
-
-    auto fileIgnores = loadIgnoreFile();
-    ignores.insert(ignores.end(), fileIgnores.begin(), fileIgnores.end());
+    std::vector<std::string> ignores = buildIgnoreList(config_);
 
     for (auto& entry : fs::recursive_directory_iterator(
              ".", fs::directory_options::skip_permission_denied)) {
