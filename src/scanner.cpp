@@ -21,7 +21,6 @@ static std::vector<std::string> loadIgnoreFile() {
 
     std::string line;
     while (std::getline(f, line)) {
-        // Skip empty lines and comments
         if (!line.empty() && line[0] != '#') {
             extra.push_back(line);
         }
@@ -93,38 +92,68 @@ int Scanner::scoreResult(const std::string& line,
         }
     }
 
-    // +15 if the matched string has high entropy (looks random)
+    // +15 if the matched string has high entropy
     if (entropy >= entropyThreshold_) score += 15;
 
     return score;
 }
 
 // run() — entry point for scan / scan --full
-int Scanner::run(bool fullScan) {
+int Scanner::run(bool fullScan, bool jsonOutput) {
     std::vector<DetectionResult> results;
 
     if (fullScan) {
-        std::cout << "[GitSentry] Scanning entire repository...\n";
+        if (!jsonOutput)
+            std::cout << "[GitSentry] Scanning entire repository...\n";
         results = scanRepo();
     } else {
         std::string diff = runCommand("git diff --cached --unified=0");
         if (diff.empty()) {
-            std::cout << "[GitSentry] No staged changes to scan.\n";
+            if (jsonOutput) {
+                std::cout << "{\n"
+                          << "  \"status\": \"clean\",\n"
+                          << "  \"secrets\": []\n"
+                          << "}\n";
+            } else {
+                std::cout << "[GitSentry] No staged changes to scan.\n";
+            }
             return 0;
         }
         results = scanDiff(diff);
+    }
+
+    // Sort results by file then line number for stable output
+    std::sort(results.begin(), results.end(),
+        [](const DetectionResult& a, const DetectionResult& b) {
+            return a.file == b.file ? a.line < b.line : a.file < b.file;
+        });
+
+    if (jsonOutput) {
+        std::cout << "{\n"
+                  << "  \"status\": \"" << (results.empty() ? "clean" : "blocked") << "\",\n"
+                  << "  \"secrets\": [\n";
+
+        for (size_t i = 0; i < results.size(); i++) {
+            auto& r = results[i];
+            std::cout << "    {\n"
+                      << "      \"file\": \"" << r.file << "\",\n"
+                      << "      \"line\": " << r.line << ",\n"
+                      << "      \"pattern\": \"" << r.patternName << "\",\n"
+                      << "      \"masked\": \"" << r.masked << "\",\n"
+                      << "      \"score\": " << r.score << "\n"
+                      << "    }" << (i + 1 < results.size() ? "," : "") << "\n";
+        }
+
+        std::cout << "  ]\n"
+                  << "}\n";
+
+        return results.empty() ? 0 : 1;
     }
 
     if (results.empty()) {
         std::cout << green("[GitSentry] No secrets detected. Safe to commit.\n");
         return 0;
     }
-
-    // Sort results by file then line number for readable output
-    std::sort(results.begin(), results.end(),
-        [](const DetectionResult& a, const DetectionResult& b) {
-            return a.file == b.file ? a.line < b.line : a.file < b.file;
-        });
 
     std::cerr << red("\n[GitSentry] BLOCKED — potential secrets detected:\n\n");
 
@@ -150,35 +179,28 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
     std::string currentFile;
     int lineNum = 0;
 
-    // Matches: @@ -oldStart,count +newStart,count @@
-    // We only care about the new-file start (group 1)
     std::regex hunkHeader(R"(^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@)");
 
     for (auto& line : splitLines(diff)) {
-        // Track current file
         if (line.rfind("+++ b/", 0) == 0) {
             currentFile = line.substr(6);
             lineNum = 0;
             continue;
         }
 
-        // Skip the old-file header
         if (line.rfind("--- ", 0) == 0) continue;
 
-        // Extract real line number from hunk header
         std::smatch m;
         if (std::regex_search(line, m, hunkHeader)) {
-            lineNum = std::stoi(m[1].str()) - 1; // -1 because we ++ before use
+            lineNum = std::stoi(m[1].str()) - 1;
             continue;
         }
 
         if (line.empty()) continue;
 
         if (line[0] == '+' && (line.size() < 2 || line[1] != '+')) {
-            // Added line — scan it
             ++lineNum;
 
-            // Pre-filter: skip lines with no alphanumeric chars
             bool hasCandidate = false;
             for (char c : line) {
                 if (std::isalnum((unsigned char)c)) {
@@ -192,10 +214,8 @@ std::vector<DetectionResult> Scanner::scanDiff(const std::string& diff) {
             results.insert(results.end(), hits.begin(), hits.end());
 
         } else if (line[0] == '-') {
-            // Removed line — don't advance new-file line counter
             continue;
         } else {
-            // Context line — advance counter
             ++lineNum;
         }
     }
@@ -235,20 +255,17 @@ std::vector<DetectionResult> Scanner::scanLine(
         std::string found = match.str();
 
         // For low-confidence / generic patterns, require token-like structure.
-        // For high-confidence known-secret regexes, trust the regex match itself.
         if (pat.confidence < 80 && !isAlphanumericHeavy(found)) continue;
 
         double entropy = shannonEntropy(found);
         int score = scoreResult(line, pat.confidence, entropy);
 
-        // Ignore very low confidence results
         if (score < 50) continue;
 
         std::string masked = maskSecret(found);
 
         results.push_back({ file, lineNum, pat.name, masked, score });
 
-        // Early exit — very high confidence hit, no need to keep checking
         if (score > 90) return results;
     }
 
@@ -268,10 +285,8 @@ std::vector<DetectionResult> Scanner::scanRepo() {
     std::vector<std::string> ignores =
         config_["ignore_paths"].get<std::vector<std::string>>();
 
-    // Always ignore .git internals
     ignores.push_back(".git/");
 
-    // Load additional ignore paths from .gitsentryignore
     auto fileIgnores = loadIgnoreFile();
     ignores.insert(ignores.end(), fileIgnores.begin(), fileIgnores.end());
 
@@ -284,10 +299,8 @@ std::vector<DetectionResult> Scanner::scanRepo() {
 
         if (pathMatchesIgnore(path, ignores)) continue;
 
-        // Skip files larger than 1MB
         if (entry.file_size() > 1'000'000) continue;
 
-        // Skip binary files — peek first 512 bytes for null bytes
         {
             std::ifstream probe(path, std::ios::binary);
             char buf[512];

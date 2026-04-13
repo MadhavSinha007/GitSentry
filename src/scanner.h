@@ -15,7 +15,7 @@ struct DetectionResult {
 class Scanner {
 public:
     explicit Scanner(const std::string& configPath);
-    int run(bool fullScan);
+    int run(bool fullScan, bool jsonOutput = false);
 
 private:
     nlohmann::json config_;
