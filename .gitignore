@@ -1,0 +1,12 @@
+#ignore config files which contians patterns
+config/patterns.json
+
+
+#Compilation and testing
+GitSentry
+test_runner
+test.txt
+
+#testing
+tests/fixtures/
+docs/

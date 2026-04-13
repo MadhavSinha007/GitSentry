@@ -12,6 +12,24 @@
 #include <future>
 #include <algorithm>
 
+// Load extra ignore paths from .gitsentryignore
+static std::vector<std::string> loadIgnoreFile() {
+    std::vector<std::string> extra;
+    std::ifstream f(".gitsentryignore");
+
+    if (!f.is_open()) return extra;
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // Skip empty lines and comments
+        if (!line.empty() && line[0] != '#') {
+            extra.push_back(line);
+        }
+    }
+
+    return extra;
+}
+
 // Constructor — load config + compile patterns
 Scanner::Scanner(const std::string& cfgPath) {
     if (cfgPath.empty()) {
@@ -252,6 +270,10 @@ std::vector<DetectionResult> Scanner::scanRepo() {
 
     // Always ignore .git internals
     ignores.push_back(".git/");
+
+    // Load additional ignore paths from .gitsentryignore
+    auto fileIgnores = loadIgnoreFile();
+    ignores.insert(ignores.end(), fileIgnores.begin(), fileIgnores.end());
 
     for (auto& entry : fs::recursive_directory_iterator(
              ".", fs::directory_options::skip_permission_denied)) {
