@@ -1,0 +1,9 @@
+# Ignore self-referential files (GitSentry scanning itself)
+config/patterns.json
+README.md
+
+# Ignore test and example files
+tests/
+docs/
+examples/
+test.txt
