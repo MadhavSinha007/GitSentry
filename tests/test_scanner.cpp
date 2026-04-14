@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
-#include "../src/entropy.h"
-#include "../src/utils.h"
+#include "../src/core/entropy.h"
+#include "../src/core/utils.h"
 
 // ─────────────────────────────────────────────
 // Test helpers
