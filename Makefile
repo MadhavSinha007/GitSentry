@@ -1,7 +1,15 @@
 CXX      = g++
-CXXFLAGS = -std=c++17 -O2 -pthread -Wall -Wextra -Ithird_party
+CXXFLAGS = -std=c++17 -O2 -pthread -Wall -Wextra \
+           -Ithird_party \
+           -Isrc/app \
+           -Isrc/cli \
+           -Isrc/scanner \
+           -Isrc/core
+
 TARGET   = GitSentry
-SRCS     = $(wildcard src/*.cpp)
+
+# Recursively find all .cpp files
+SRCS = $(shell find src -name '*.cpp')
 
 PREFIX   ?= /usr/local
 BINDIR    = $(PREFIX)/bin

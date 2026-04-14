@@ -33,7 +33,7 @@ private:
     };
 
     std::vector<CompiledPattern> patterns_;
-    double entropyThreshold_;
+    double entropyThreshold_ = 4.5;
 
     std::vector<DetectionResult> scanRepo(int& filesScanned, int& linesScanned);
     std::vector<DetectionResult> scanDiff(const std::string& diff, int& filesScanned, int& linesScanned);
