@@ -4,6 +4,7 @@
 
 #include <regex>
 #include <cctype>
+#include <iostream>
 
 // scanDiff() — staged diff scan with file/line stats
 std::vector<DetectionResult> Scanner::scanDiff(
@@ -73,4 +74,35 @@ std::vector<DetectionResult> Scanner::scanDiff(
     }
 
     return results;
+}
+
+
+//combined patch stream version of scanDiff() for testing
+ScanStatsResult Scanner::scanHistory(const std::string& since) {
+    if (!config_.is_object()) {
+        return {};
+    }
+
+    std::cout << "[GitSentry] Scanning git history";
+    if (!since.empty()) {
+        std::cout << " (since " << since << ")";
+    }
+    std::cout << "...\n";
+
+    ScanStatsResult result;
+
+    std::string cmd = "git log -p --all --unified=0 --format=";
+
+    if (!since.empty()) {
+        cmd = "git log -p --all --since=\"" + since + "\" --unified=0 --format=";
+    }
+
+    std::string diff = runCommand(cmd);
+
+    if (diff.empty()) {
+        return result;
+    }
+
+    result.detections = scanDiff(diff, result.filesScanned, result.linesScanned);
+    return result;
 }

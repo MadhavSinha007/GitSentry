@@ -5,19 +5,28 @@
 #include <algorithm>
 #include <chrono>
 
-// run() — entry point for scan / scan --full
-int Scanner::run(bool fullScan, bool jsonOutput) {
+// run() — entry point for scan / scan --full / scan --history
+int Scanner::run(bool fullScan, bool jsonOutput,
+                 bool historyScan,
+                 const std::string& since){
     auto start = std::chrono::high_resolution_clock::now();
 
     int filesScanned = 0;
     int linesScanned = 0;
     std::vector<DetectionResult> results;
 
-    if (fullScan) {
+    if (historyScan) {
+        auto history = scanHistory(since);
+        filesScanned = history.filesScanned;
+        linesScanned = history.linesScanned;
+        results = std::move(history.detections);
+
+    } else if (fullScan) {
         if (!jsonOutput) {
             std::cout << "[GitSentry] Scanning entire repository...\n";
         }
         results = scanRepo(filesScanned, linesScanned);
+
     } else {
         std::string diff = runCommand("git diff --cached --unified=0");
 
@@ -86,7 +95,11 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
     }
 
     if (results.empty()) {
-        std::cout << green("[GitSentry] No secrets detected. Safe to commit.\n");
+        if (historyScan) {
+            std::cout << green("[GitSentry] No secrets detected in git history.\n");
+        } else {
+            std::cout << green("[GitSentry] No secrets detected. Safe to commit.\n");
+        }
     } else {
         std::cerr << red("\n[GitSentry] BLOCKED — potential secrets detected:\n\n");
 
@@ -103,7 +116,11 @@ int Scanner::run(bool fullScan, bool jsonOutput) {
                       << "    " << r.masked << "\n\n";
         }
 
-        std::cerr << "[GitSentry] Commit blocked. Fix the above before committing.\n";
+        if (historyScan) {
+            std::cerr << "[GitSentry] Secrets found in git history.\n";
+        } else {
+            std::cerr << "[GitSentry] Commit blocked. Fix the above before committing.\n";
+        }
     }
 
     std::cout << "\n[GitSentry] Scan complete\n"

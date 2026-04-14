@@ -10,7 +10,8 @@ std::string resolveConfigPath()
 {
     namespace fs = std::filesystem;
 
-    if (const char* envPath = std::getenv("GITSENTRY_CONFIG")) {
+    if (const char *envPath = std::getenv("GITSENTRY_CONFIG"))
+    {
         if (fs::exists(envPath))
             return envPath;
     }
@@ -35,13 +36,15 @@ int main(int argc, char *argv[])
         std::cout << "GitSentry — secret detection for git repos\n\n"
                   << "Usage: GitSentry <command>\n\n"
                   << "Commands:\n"
-                  << "  install       Install pre-commit and pre-push hooks\n"
-                  << "  uninstall     Remove git hooks\n"
-                  << "  scan          Scan staged changes (used by pre-commit)\n"
-                  << "  scan --full   Scan entire repository (used by pre-push)\n"
-                  << "  scan --json   Scan staged changes and output JSON\n"
-                  << "  config        Show current patterns config\n"
-                  << "  --version     Show version\n";
+                  << "  install          Install pre-commit and pre-push hooks\n"
+                  << "  uninstall        Remove git hooks\n"
+                  << "  scan             Scan staged changes (used by pre-commit)\n"
+                  << "  scan --full      Scan entire repository (used by pre-push)\n"
+                  << "  scan --json      Scan staged changes and output JSON\n"
+                  << "  scan --history   Scan full git history\n"
+                  << "  config           Show current patterns config\n"
+                  << "  --version        Show version\n";
+
         return 0;
     }
 
@@ -63,26 +66,35 @@ int main(int argc, char *argv[])
         return CLI::showConfig();
 
     if (cmd == "scan")
+{
+    bool full = false;
+    bool jsonOut = false;
+    bool history = false;
+    std::string sinceArg;
+
+    for (int i = 2; i < argc; i++)
     {
-        bool full = false;
-        bool jsonOut = false;
+        std::string arg = argv[i];
 
-        for (int i = 2; i < argc; i++)
-        {
-            std::string arg = argv[i];
-            if (arg == "--full")
-                full = true;
-            else if (arg == "--json")
-                jsonOut = true;
-        }
-
-        std::string configPath = resolveConfigPath();
-        if (configPath.empty())
-            return 1;
-
-        Scanner scanner(configPath);
-        return scanner.run(full, jsonOut);
+        if (arg == "--full")
+            full = true;
+        else if (arg == "--json")
+            jsonOut = true;
+        else if (arg == "--history")
+            history = true;
+        else if (arg.rfind("--since=", 0) == 0)
+            sinceArg = arg.substr(8); // everything after '='
     }
+
+    std::string configPath = resolveConfigPath();
+    if (configPath.empty())
+        return 1;
+
+    Scanner scanner(configPath);
+
+    // pass sinceArg
+    return scanner.run(full, jsonOut, history, sinceArg);
+}
 
     std::cerr << "[GitSentry] Unknown command: " << cmd << "\n";
     std::cerr << "Run 'GitSentry' with no arguments to see usage.\n";
