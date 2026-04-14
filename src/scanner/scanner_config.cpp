@@ -79,6 +79,11 @@ int Scanner::scoreResult(const std::string& line, int baseConf, double entropy) 
 std::vector<DetectionResult> Scanner::scanLine(
     const std::string& file, int lineNum, const std::string& line) {
 
+        //ignore line that have "// gitsentry:ignore"
+        if(line.find("gitsentry:ignore") != std::string::npos){
+            return {};
+        }
+
     std::vector<DetectionResult> results;
 
     for (const auto& pat : patterns_) {
