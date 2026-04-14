@@ -61,7 +61,7 @@ jobs:
           g++ -std=c++17 -Ithird_party \
               tests/test_scanner.cpp \
               src/core/entropy.cpp \
-              src/utils.cpp \
+              src/core/utils.cpp \
               -o test_runner
 
       - name: Run tests
