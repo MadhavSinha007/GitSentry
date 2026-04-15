@@ -25,8 +25,9 @@ class Scanner
 public:
     explicit Scanner(const std::string &configPath);
     int run(bool fullScan, bool jsonOutput = false,
-            bool historyScan = false,
-            const std::string &since = "");
+        bool historyScan = false,
+        const std::string &since = "",
+        bool fixMode = false);
 
     ScanStatsResult scanHistory(const std::string &since = "");
 

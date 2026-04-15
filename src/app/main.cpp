@@ -29,25 +29,39 @@ std::string resolveConfigPath()
     return "";
 }
 
+void printHelp()
+{
+    std::cout << "GitSentry — secret detection for git repos\n\n"
+              << "Usage: GitSentry <command>\n\n"
+              << "Commands:\n"
+              << "  install                         Install pre-commit and pre-push hooks\n"
+              << "  uninstall                       Remove git hooks\n"
+              << "  scan                            Scan staged changes (used by pre-commit)\n"
+              << "  scan --full                     Scan entire repository (used by pre-push)\n"
+              << "  scan --json                     Scan staged changes and output JSON\n"
+              << "  scan --history                  Scan full git history\n"
+              << "  scan --history --since=<time>   Scan git history since a time\n"
+              << "  scan --fix                      Scan staged changes and interactively remove detected lines\n"
+              << "  config                          Show current patterns config\n"
+              << "  help, --help, -h                Show help\n"
+              << "  --version, -v                   Show version\n";
+}
+
 int main(int argc, char *argv[])
 {
-    if ( argc < 2 )
-    { 
-        std::cout << "GitSentry — secret detection for git repos\n\n"
-                  << "Usage: GitSentry <command>\n\n"
-                  << "Commands:\n"
-                  << "  install          Install pre-commit and pre-push hooks\n"
-                  << "  uninstall        Remove git hooks\n"
-                  << "  scan             Scan staged changes (used by pre-commit)\n"
-                  << "  scan --full      Scan entire repository (used by pre-push)\n"
-                  << "  scan --json      Scan staged changes and output JSON\n"
-                  << "  scan --history   --since=<time>  Scan git history since a time\n"
-                  << "  config           Show current patterns config\n"
-                  << "  --version        Show version\n";
+    if (argc < 2)
+    {
+        printHelp();
         return 0;
     }
 
     std::string cmd = argv[1];
+
+    if (cmd == "help" || cmd == "--help" || cmd == "-h")
+    {
+        printHelp();
+        return 0;
+    }
 
     if (cmd == "--version" || cmd == "-v")
     {
@@ -69,6 +83,7 @@ int main(int argc, char *argv[])
         bool full = false;
         bool jsonOut = false;
         bool history = false;
+        bool fixMode = false;
         std::string sinceArg;
 
         for (int i = 2; i < argc; i++)
@@ -81,6 +96,8 @@ int main(int argc, char *argv[])
                 jsonOut = true;
             else if (arg == "--history")
                 history = true;
+            else if (arg == "--fix")
+                fixMode = true;
             else if (arg.rfind("--since=", 0) == 0)
                 sinceArg = arg.substr(8);
         }
@@ -91,15 +108,21 @@ int main(int argc, char *argv[])
             return 1;
         }
 
+        if (fixMode && (full || history || jsonOut))
+        {
+            std::cerr << "[GitSentry] ERROR: --fix only supports staged scan mode right now\n";
+            return 1;
+        }
+
         std::string configPath = resolveConfigPath();
         if (configPath.empty())
             return 1;
 
         Scanner scanner(configPath);
-        return scanner.run(full, jsonOut, history, sinceArg);
+        return scanner.run(full, jsonOut, history, sinceArg, fixMode);
     }
 
     std::cerr << "[GitSentry] Unknown command: " << cmd << "\n";
-    std::cerr << "Run 'GitSentry' with no arguments to see usage.\n";
+    std::cerr << "Run 'GitSentry help' to see usage.\n";
     return 1;
 }

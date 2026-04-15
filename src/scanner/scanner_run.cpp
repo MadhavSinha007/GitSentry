@@ -4,9 +4,15 @@
 #include <iostream>
 #include <algorithm>
 #include <chrono>
+#include <fstream>
+#include <set>
 
-// run() — entry point for scan / scan --full / scan --history
-int Scanner::run(bool fullScan, bool jsonOutput, bool historyScan, const std::string& since) {
+// run() — entry point for scan / scan --full / scan --history / scan --fix
+int Scanner::run(bool fullScan,
+                 bool jsonOutput,
+                 bool historyScan,
+                 const std::string& since,
+                 bool fixMode) {
     auto start = std::chrono::high_resolution_clock::now();
 
     int filesScanned = 0;
@@ -92,6 +98,8 @@ int Scanner::run(bool fullScan, bool jsonOutput, bool historyScan, const std::st
         return results.empty() ? 0 : 1;
     }
 
+    std::set<std::string> modifiedFiles;
+
     if (results.empty()) {
         if (historyScan) {
             std::cout << green("[GitSentry] No secrets detected in git history.\n");
@@ -112,6 +120,57 @@ int Scanner::run(bool fullScan, bool jsonOutput, bool historyScan, const std::st
                       << "  [" << r.patternName << "]"
                       << "  score=" << r.score << "\n"
                       << "    " << r.masked << "\n\n";
+
+            if (fixMode) {
+                std::cerr << "  Remove line " << r.line
+                          << " from " << r.file << "? (y/n): ";
+
+                char ans = 'n';
+                std::cin >> ans;
+
+                if (ans == 'y' || ans == 'Y') {
+                    std::ifstream in(r.file);
+                    if (!in.is_open()) {
+                        std::cerr << "  Could not open file for reading.\n";
+                        continue;
+                    }
+
+                    std::vector<std::string> lines;
+                    std::string l;
+                    while (std::getline(in, l)) {
+                        lines.push_back(l);
+                    }
+                    in.close();
+
+                    if (r.line > 0 && r.line <= static_cast<int>(lines.size())) {
+                        lines.erase(lines.begin() + r.line - 1);
+
+                        std::ofstream out(r.file);
+                        if (!out.is_open()) {
+                            std::cerr << "  Could not open file for writing.\n";
+                            continue;
+                        }
+
+                        for (const auto& ln : lines) {
+                            out << ln << "\n";
+                        }
+                        out.close();
+
+                        modifiedFiles.insert(r.file);
+                        std::cerr << "  Line removed.\n";
+                    } else {
+                        std::cerr << "  Skipped: line number out of range in current file.\n";
+                    }
+                }
+            }
+        }
+
+        if (fixMode && !modifiedFiles.empty()) {
+            std::cerr << "\n[GitSentry] Re-stage modified files before committing:\n";
+            for (const auto& file : modifiedFiles) {
+                std::cerr << "  git add " << file << "\n";
+            }
+            std::cerr << "\n";
         }
 
         if (historyScan) {
