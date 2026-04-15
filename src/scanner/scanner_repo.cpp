@@ -7,6 +7,7 @@
 #include <cstring>
 #include <filesystem>
 #include <future>
+#include <unordered_set>
 
 // Load extra ignore paths from .gitsentryignore
 std::vector<std::string> loadIgnoreFile() {
@@ -39,6 +40,34 @@ std::vector<std::string> buildIgnoreList(const nlohmann::json& config) {
     ignores.insert(ignores.end(), extra.begin(), extra.end());
 
     return ignores;
+}
+
+// Check whether a file should be scanned based on scan_extensions
+bool isScanExtensionAllowed(const std::string& path, const nlohmann::json& config) {
+    namespace fs = std::filesystem;
+
+    if (!config.contains("scan_extensions") || !config["scan_extensions"].is_array()) {
+        return true;
+    }
+
+    std::vector<std::string> exts =
+        config["scan_extensions"].get<std::vector<std::string>>();
+    std::unordered_set<std::string> allowed(exts.begin(), exts.end());
+
+    fs::path p(path);
+    std::string ext = p.extension().string();
+    std::string filename = p.filename().string();
+
+    if (!ext.empty() && allowed.count(ext)) {
+        return true;
+    }
+
+    // handle dotfiles like .env
+    if (allowed.count(filename)) {
+        return true;
+    }
+
+    return false;
 }
 
 // scanFile() — scan one file and return local stats
@@ -82,6 +111,7 @@ std::vector<DetectionResult> Scanner::scanRepo(int& filesScanned, int& linesScan
         std::string path = entry.path().string();
 
         if (pathMatchesIgnore(path, ignores)) continue;
+        if (!isScanExtensionAllowed(path, config_)) continue;
         if (entry.file_size() > 1'000'000) continue;
 
         // Skip binary files

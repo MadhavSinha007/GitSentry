@@ -27,7 +27,8 @@ std::vector<DetectionResult> Scanner::scanDiff(
             lineNum = 0;
             currentFileCounted = false;
 
-            if (pathMatchesIgnore(currentFile, ignores)) {
+            if (pathMatchesIgnore(currentFile, ignores) ||
+                !isScanExtensionAllowed(currentFile, config_)) {
                 currentFile.clear();
             }
 
@@ -35,6 +36,7 @@ std::vector<DetectionResult> Scanner::scanDiff(
         }
 
         if (line.rfind("--- ", 0) == 0) continue;
+        if (line.rfind("diff --git ", 0) == 0) continue;
 
         std::smatch m;
         if (std::regex_search(line, m, hunkHeader)) {
@@ -76,8 +78,7 @@ std::vector<DetectionResult> Scanner::scanDiff(
     return results;
 }
 
-
-//combined patch stream version of scanDiff() for testing
+// combined patch-stream history scan
 ScanStatsResult Scanner::scanHistory(const std::string& since) {
     if (!config_.is_object()) {
         return {};

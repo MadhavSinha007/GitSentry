@@ -6,9 +6,7 @@
 #include <chrono>
 
 // run() — entry point for scan / scan --full / scan --history
-int Scanner::run(bool fullScan, bool jsonOutput,
-                 bool historyScan,
-                 const std::string& since){
+int Scanner::run(bool fullScan, bool jsonOutput, bool historyScan, const std::string& since) {
     auto start = std::chrono::high_resolution_clock::now();
 
     int filesScanned = 0;
