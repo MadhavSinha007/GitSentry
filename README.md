@@ -1,4 +1,7 @@
 ![CI](https://github.com/MadhavSinha007/GitSentry/actions/workflows/ci.yml/badge.svg)
+![Version](https://img.shields.io/github/v/tag/MadhavSinha007/GitSentry)
+![License](https://img.shields.io/github/license/MadhavSinha007/GitSentry)
+![Stars](https://img.shields.io/github/stars/MadhavSinha007/GitSentry?style=social)
 
 # GitSentry
 
