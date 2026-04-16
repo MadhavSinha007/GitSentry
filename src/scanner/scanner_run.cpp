@@ -54,7 +54,7 @@ int Scanner::run(bool fullScan,
                           << "  Files scanned:  0\n"
                           << "  Lines scanned:  0\n"
                           << "  Time taken:     " << (ms / 1000.0) << "s\n"
-                          << "  Secrets found:  0\n\n";
+                          << "  Findings:       0\n\n";
             }
 
             return 0;
@@ -68,12 +68,20 @@ int Scanner::run(bool fullScan,
             return a.file == b.file ? a.line < b.line : a.file < b.file;
         });
 
+    bool hasBlocker = false;
+    for (const auto& r : results) {
+        if (r.severity == "critical") {
+            hasBlocker = true;
+            break;
+        }
+    }
+
     auto end = std::chrono::high_resolution_clock::now();
     double ms = std::chrono::duration<double, std::milli>(end - start).count();
 
     if (jsonOutput) {
         std::cout << "{\n"
-                  << "  \"status\": \"" << (results.empty() ? "clean" : "blocked") << "\",\n"
+                  << "  \"status\": \"" << (hasBlocker ? "blocked" : "clean") << "\",\n"
                   << "  \"secrets\": [\n";
 
         for (size_t i = 0; i < results.size(); i++) {
@@ -83,7 +91,8 @@ int Scanner::run(bool fullScan,
                       << "      \"line\": " << r.line << ",\n"
                       << "      \"pattern\": \"" << r.patternName << "\",\n"
                       << "      \"masked\": \"" << r.masked << "\",\n"
-                      << "      \"score\": " << r.score << "\n"
+                      << "      \"score\": " << r.score << ",\n"
+                      << "      \"severity\": \"" << r.severity << "\"\n"
                       << "    }" << (i + 1 < results.size() ? "," : "") << "\n";
         }
 
@@ -95,7 +104,7 @@ int Scanner::run(bool fullScan,
                   << "  }\n"
                   << "}\n";
 
-        return results.empty() ? 0 : 1;
+        return hasBlocker ? 1 : 0;
     }
 
     std::set<std::string> modifiedFiles;
@@ -107,7 +116,7 @@ int Scanner::run(bool fullScan,
             std::cout << green("[GitSentry] No secrets detected. Safe to commit.\n");
         }
     } else {
-        std::cerr << red("\n[GitSentry] BLOCKED — potential secrets detected:\n\n");
+        std::cerr << "\n[GitSentry] Findings detected:\n\n";
 
         std::string lastFile;
         for (const auto& r : results) {
@@ -116,7 +125,17 @@ int Scanner::run(bool fullScan,
                 lastFile = r.file;
             }
 
-            std::cerr << yellow("    Line " + std::to_string(r.line))
+            std::string label;
+            if (r.severity == "critical") {
+                label = red("[CRITICAL]");
+            } else if (r.severity == "warning") {
+                label = yellow("[WARNING ]");
+            } else {
+                label = green("[INFO    ]");
+            }
+
+            std::cerr << "    " << label
+                      << " Line " << r.line
                       << "  [" << r.patternName << "]"
                       << "  score=" << r.score << "\n"
                       << "    " << r.masked << "\n\n";
@@ -173,10 +192,14 @@ int Scanner::run(bool fullScan,
             std::cerr << "\n";
         }
 
-        if (historyScan) {
-            std::cerr << "[GitSentry] Secrets found in git history.\n";
+        if (hasBlocker) {
+            if (historyScan) {
+                std::cerr << red("[GitSentry] Critical secrets found in git history.\n");
+            } else {
+                std::cerr << red("[GitSentry] Commit blocked due to critical findings.\n");
+            }
         } else {
-            std::cerr << "[GitSentry] Commit blocked. Fix the above before committing.\n";
+            std::cerr << yellow("[GitSentry] Only warning/info findings detected. Not blocking.\n");
         }
     }
 
@@ -184,7 +207,7 @@ int Scanner::run(bool fullScan,
               << "  Files scanned:  " << filesScanned << "\n"
               << "  Lines scanned:  " << linesScanned << "\n"
               << "  Time taken:     " << (ms / 1000.0) << "s\n"
-              << "  Secrets found:  " << results.size() << "\n\n";
+              << "  Findings:       " << results.size() << "\n\n";
 
-    return results.empty() ? 0 : 1;
+    return hasBlocker ? 1 : 0;
 }

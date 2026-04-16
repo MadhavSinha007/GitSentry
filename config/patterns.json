@@ -1,64 +1,92 @@
 {
   "entropy_threshold": 4.5,
   "min_string_length": 16,
+  "scan_extensions": [
+    ".cpp",
+    ".h",
+    ".py",
+    ".js",
+    ".ts",
+    ".env",
+    ".yml",
+    ".yaml",
+    ".json",
+    ".txt",
+    ".sh",
+    ".rb",
+    ".go",
+    ".rs"
+  ],
   "ignore_paths": [
-  "tests/",
-  "node_modules/",
-  ".git/",
-  "config/patterns.json",
-  "README.md"
-],
+    "tests/",
+    "node_modules/",
+    ".git/",
+    "config/patterns.json",
+    "README.md",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml"
+  ],
   "patterns": [
     {
       "name": "AWS Access Key",
       "regex": "AKIA[0-9A-Z]{16}",
-      "confidence": 90
+      "confidence": 90,
+      "severity": "critical"
     },
     {
       "name": "GitHub Token",
       "regex": "ghp_[A-Za-z0-9]{36}",
-      "confidence": 95
+      "confidence": 95,
+      "severity": "critical"
     },
     {
       "name": "Stripe Secret Key",
       "regex": "sk_live_[0-9a-zA-Z]{24}",
-      "confidence": 90
+      "confidence": 90,
+      "severity": "critical"
     },
     {
       "name": "Generic API Key",
       "regex": "[aA][pP][iI][_-]?[kK][eE][yY][\\s]*[=:][\\s]*['\"]?[A-Za-z0-9_\\-]{20,}",
-      "confidence": 50
+      "confidence": 50,
+      "severity": "warning"
     },
-
     {
       "name": "Google API Key",
       "regex": "AIza[0-9A-Za-z\\-_]{35}",
-      "confidence": 90
+      "confidence": 90,
+      "severity": "critical"
     },
     {
       "name": "Slack Token",
       "regex": "xox[baprs]-[0-9a-zA-Z]{10,48}",
-      "confidence": 90
+      "confidence": 90,
+      "severity": "critical"
     },
     {
       "name": "JWT Token",
       "regex": "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}",
-      "confidence": 80
+      "confidence": 80,
+      "severity": "warning"
     },
     {
       "name": "Private Key",
       "regex": "-----BEGIN (RSA|EC) PRIVATE KEY",
-      "confidence": 95
+      "confidence": 95,
+      "severity": "critical"
     },
     {
       "name": "Database URL",
       "regex": "postgres://[^\\s]+",
-      "confidence": 85
+      "confidence": 85,
+      "severity": "warning"
     },
     {
       "name": "Discord Token",
       "regex": "[MN][A-Za-z0-9]{23}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27}",
-      "confidence": 85
+      "confidence": 85,
+      "severity": "critical"
     }
   ]
 }

@@ -42,11 +42,14 @@ Scanner::Scanner(const std::string &cfgPath)
         {
             try
             {
-                patterns_.push_back({p["name"].get<std::string>(),
-                                     std::regex(
-                                         p["regex"].get<std::string>(),
-                                         std::regex::ECMAScript | std::regex::optimize),
-                                     p["confidence"].get<int>()});
+                patterns_.push_back({
+                    p["name"].get<std::string>(),
+                    std::regex(
+                        p["regex"].get<std::string>(),
+                        std::regex::ECMAScript | std::regex::optimize),
+                    p["confidence"].get<int>(),
+                    p.value("severity", "info")
+                });
             }
             catch (const std::regex_error &e)
             {
@@ -94,9 +97,8 @@ int Scanner::scoreResult(const std::string &line, int baseConf, double entropy)
 std::vector<DetectionResult> Scanner::scanLine(
     const std::string &file, int lineNum, const std::string &line)
 {
-
     // ignore line that have "// gitsentry:ignore"
-    //  /* gitsentry:ignore */ and # gitsentry:ignore are also supported
+    // /* gitsentry:ignore */ and # gitsentry:ignore are also supported
     if (line.find("// gitsentry:ignore") != std::string::npos ||
         line.find("# gitsentry:ignore") != std::string::npos ||
         line.find("/* gitsentry:ignore") != std::string::npos)
@@ -125,7 +127,14 @@ std::vector<DetectionResult> Scanner::scanLine(
             continue;
 
         std::string masked = maskSecret(found);
-        results.push_back({file, lineNum, pat.name, masked, score});
+        results.push_back({
+            file,
+            lineNum,
+            pat.name,
+            masked,
+            score,
+            pat.severity
+        });
 
         // Early exit for very strong matches
         if (score > 90)

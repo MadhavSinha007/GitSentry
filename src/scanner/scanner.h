@@ -11,6 +11,7 @@ struct DetectionResult
     std::string patternName;
     std::string masked;
     int score;
+    std::string severity;
 };
 
 struct ScanStatsResult
@@ -24,10 +25,11 @@ class Scanner
 {
 public:
     explicit Scanner(const std::string &configPath);
-    int run(bool fullScan, bool jsonOutput = false,
-        bool historyScan = false,
-        const std::string &since = "",
-        bool fixMode = false);
+    int run(bool fullScan,
+            bool jsonOutput = false,
+            bool historyScan = false,
+            const std::string &since = "",
+            bool fixMode = false);
 
     ScanStatsResult scanHistory(const std::string &since = "");
 
@@ -39,6 +41,7 @@ private:
         std::string name;
         std::regex re;
         int confidence;
+        std::string severity;
     };
 
     std::vector<CompiledPattern> patterns_;
