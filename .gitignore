@@ -10,3 +10,8 @@ test.txt
 #testing
 tests/fixtures/
 docs/
+
+# Build files
+GitSentry
+*.o
+*.d
