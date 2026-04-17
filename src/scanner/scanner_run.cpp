@@ -48,13 +48,14 @@ int Scanner::saveBaseline(const std::string& path)
     return 0;
 }
 
-// run() — entry point for scan / scan --full / scan --history / scan --fix / scan --diff
+// run() — entry point for scan / scan --full / scan --history / scan --fix / scan --diff / scan --push
 int Scanner::run(bool fullScan,
                  bool jsonOutput,
                  bool historyScan,
                  const std::string& since,
                  bool fixMode,
-                 bool diffMode) {
+                 bool diffMode,
+                 bool pushMode) {
     auto start = std::chrono::high_resolution_clock::now();
 
     int filesScanned = 0;
@@ -72,6 +73,12 @@ int Scanner::run(bool fullScan,
             std::cout << "[GitSentry] Scanning entire repository...\n";
         }
         results = scanRepo(filesScanned, linesScanned);
+
+    } else if (pushMode) {
+        if (!jsonOutput) {
+            std::cout << "[GitSentry] Scanning pushed commits only...\n";
+        }
+        results = scanPushDiff(filesScanned, linesScanned);
 
     } else {
         std::string diff = runCommand("git diff --cached --unified=0");
@@ -175,6 +182,8 @@ int Scanner::run(bool fullScan,
             std::cout << green("[GitSentry] No new findings since baseline.\n");
         } else if (historyScan) {
             std::cout << green("[GitSentry] No secrets detected in git history.\n");
+        } else if (pushMode) {
+            std::cout << green("[GitSentry] No secrets detected in pushed commits.\n");
         } else {
             std::cout << green("[GitSentry] No secrets detected. Safe to commit.\n");
         }
@@ -260,12 +269,16 @@ int Scanner::run(bool fullScan,
                 std::cerr << red("[GitSentry] New critical findings detected since baseline.\n");
             } else if (historyScan) {
                 std::cerr << red("[GitSentry] Critical secrets found in git history.\n");
+            } else if (pushMode) {
+                std::cerr << red("[GitSentry] Push blocked due to critical findings in pushed commits.\n");
             } else {
                 std::cerr << red("[GitSentry] Commit blocked due to critical findings.\n");
             }
         } else {
             if (diffMode) {
                 std::cerr << yellow("[GitSentry] Only new warning/info findings detected since baseline.\n");
+            } else if (pushMode) {
+                std::cerr << yellow("[GitSentry] Only warning/info findings detected in pushed commits. Not blocking.\n");
             } else {
                 std::cerr << yellow("[GitSentry] Only warning/info findings detected. Not blocking.\n");
             }

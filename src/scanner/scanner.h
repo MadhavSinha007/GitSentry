@@ -32,7 +32,8 @@ public:
             bool historyScan = false,
             const std::string &since = "",
             bool fixMode = false,
-            bool diffMode = false);
+            bool diffMode = false,
+            bool pushMode = false);
 
     ScanStatsResult scanHistory(const std::string &since = "");
     int saveBaseline(const std::string &path = ".gitsentry_baseline");
@@ -53,6 +54,7 @@ private:
 
     std::vector<DetectionResult> scanRepo(int &filesScanned, int &linesScanned);
     std::vector<DetectionResult> scanDiff(const std::string &diff, int &filesScanned, int &linesScanned);
+    std::vector<DetectionResult> scanPushDiff(int &filesScanned, int &linesScanned);
     ScanStatsResult scanFile(const std::string &path);
     std::vector<DetectionResult> scanLine(
         const std::string &file, int lineNum, const std::string &line);

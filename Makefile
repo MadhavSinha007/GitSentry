@@ -1,5 +1,5 @@
 CXX      = g++
-CXXFLAGS = -std=c++17 -O2 -pthread -Wall -Wextra \
+CXXFLAGS = -std=c++17 -O2 -pthread -Wall -Wextra -MMD -MP \
            -Ithird_party \
            -Isrc/app \
            -Isrc/cli \
@@ -11,12 +11,21 @@ TARGET   = GitSentry
 # Recursively find all .cpp files
 SRCS = $(shell find src -name '*.cpp')
 
+# Object and dependency files
+OBJS = $(SRCS:.cpp=.o)
+DEPS = $(OBJS:.o=.d)
+
 PREFIX   ?= /usr/local
 BINDIR    = $(PREFIX)/bin
 SHAREDIR  = $(PREFIX)/share/GitSentry
 
-$(TARGET): $(SRCS)
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 install: $(TARGET)
 	@echo "[GitSentry] Installing binary to $(BINDIR)..."
@@ -35,7 +44,18 @@ uninstall:
 	sudo rm -rf $(SHAREDIR)
 	@echo "[GitSentry] Uninstalled."
 
-clean:
-	rm -f $(TARGET)
+run-help: $(TARGET)
+	./$(TARGET) help
 
-.PHONY: install uninstall clean
+test-push-hook: $(TARGET)
+	@echo "#!/bin/sh" > .git/hooks/pre-push
+	@echo "cat | ./$(TARGET) scan --push" >> .git/hooks/pre-push
+	chmod +x .git/hooks/pre-push
+	@echo "[GitSentry] Wrote .git/hooks/pre-push"
+
+clean:
+	rm -f $(TARGET) $(OBJS) $(DEPS)
+
+-include $(DEPS)
+
+.PHONY: all install uninstall clean run-help test-push-hook

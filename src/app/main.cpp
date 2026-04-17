@@ -38,7 +38,8 @@ void printHelp()
               << "  uninstall                       Remove git hooks\n"
               << "  baseline                        Save baseline of current findings\n"
               << "  scan                            Scan staged changes (used by pre-commit)\n"
-              << "  scan --full                     Scan entire repository (used by pre-push)\n"
+              << "  scan --full                     Scan entire repository\n"
+              << "  scan --push                     Scan only commits being pushed (used by pre-push)\n"
               << "  scan --json                     Scan staged changes and output JSON\n"
               << "  scan --fix                      Scan staged changes and interactively remove detected lines\n"
               << "  scan --diff                     Show only new findings vs baseline\n"
@@ -97,6 +98,7 @@ int main(int argc, char *argv[])
         bool history = false;
         bool fixMode = false;
         bool diffMode = false;
+        bool pushMode = false;
         std::string sinceArg;
 
         for (int i = 2; i < argc; i++)
@@ -113,6 +115,8 @@ int main(int argc, char *argv[])
                 fixMode = true;
             else if (arg == "--diff")
                 diffMode = true;
+            else if (arg == "--push")
+                pushMode = true;
             else if (arg.rfind("--since=", 0) == 0)
                 sinceArg = arg.substr(8);
         }
@@ -123,7 +127,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        if (fixMode && (full || history || jsonOut))
+        if (fixMode && (full || history || jsonOut || pushMode))
         {
             std::cerr << "[GitSentry] ERROR: --fix only supports staged scan mode right now\n";
             return 1;
@@ -135,12 +139,18 @@ int main(int argc, char *argv[])
             return 1;
         }
 
+        if (pushMode && (full || history))
+        {
+            std::cerr << "[GitSentry] ERROR: --push cannot be combined with --full or --history\n";
+            return 1;
+        }
+
         std::string configPath = resolveConfigPath();
         if (configPath.empty())
             return 1;
 
         Scanner scanner(configPath);
-        return scanner.run(full, jsonOut, history, sinceArg, fixMode, diffMode);
+        return scanner.run(full, jsonOut, history, sinceArg, fixMode, diffMode, pushMode);
     }
 
     std::cerr << "[GitSentry] Unknown command: " << cmd << "\n";
