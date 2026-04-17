@@ -7,12 +7,54 @@
 #include <fstream>
 #include <set>
 
-// run() — entry point for scan / scan --full / scan --history / scan --fix
+// Load baseline file into a set of known findings
+static std::set<std::string> loadBaseline(const std::string& path)
+{
+    std::set<std::string> known;
+
+    std::ifstream f(path);
+    if (!f.is_open())
+        return known;
+
+    std::string line;
+    while (std::getline(f, line)) {
+        if (!line.empty())
+            known.insert(line);
+    }
+
+    return known;
+}
+
+// Save baseline of current full-repo findings
+int Scanner::saveBaseline(const std::string& path)
+{
+    int filesScanned = 0;
+    int linesScanned = 0;
+    auto results = scanRepo(filesScanned, linesScanned);
+
+    std::ofstream f(path);
+    if (!f.is_open()) {
+        std::cerr << "[GitSentry] ERROR: cannot write baseline file: " << path << "\n";
+        return 1;
+    }
+
+    for (const auto& r : results) {
+        f << r.file << ":" << r.patternName << ":" << r.fingerprint << "\n";
+    }
+
+    std::cout << "[GitSentry] Baseline saved: "
+              << results.size() << " findings.\n";
+
+    return 0;
+}
+
+// run() — entry point for scan / scan --full / scan --history / scan --fix / scan --diff
 int Scanner::run(bool fullScan,
                  bool jsonOutput,
                  bool historyScan,
                  const std::string& since,
-                 bool fixMode) {
+                 bool fixMode,
+                 bool diffMode) {
     auto start = std::chrono::high_resolution_clock::now();
 
     int filesScanned = 0;
@@ -63,6 +105,24 @@ int Scanner::run(bool fullScan,
         results = scanDiff(diff, filesScanned, linesScanned);
     }
 
+    if (diffMode) {
+        auto known = loadBaseline(".gitsentry_baseline");
+        std::vector<DetectionResult> filtered;
+
+        for (const auto& r : results) {
+            std::string key = r.file + ":" +
+                              r.patternName + ":" +
+                              r.fingerprint;
+
+            if (known.count(key))
+                continue;
+
+            filtered.push_back(r);
+        }
+
+        results = std::move(filtered);
+    }
+
     std::sort(results.begin(), results.end(),
         [](const DetectionResult& a, const DetectionResult& b) {
             return a.file == b.file ? a.line < b.line : a.file < b.file;
@@ -92,7 +152,8 @@ int Scanner::run(bool fullScan,
                       << "      \"pattern\": \"" << r.patternName << "\",\n"
                       << "      \"masked\": \"" << r.masked << "\",\n"
                       << "      \"score\": " << r.score << ",\n"
-                      << "      \"severity\": \"" << r.severity << "\"\n"
+                      << "      \"severity\": \"" << r.severity << "\",\n"
+                      << "      \"fingerprint\": \"" << r.fingerprint << "\"\n"
                       << "    }" << (i + 1 < results.size() ? "," : "") << "\n";
         }
 
@@ -110,7 +171,9 @@ int Scanner::run(bool fullScan,
     std::set<std::string> modifiedFiles;
 
     if (results.empty()) {
-        if (historyScan) {
+        if (diffMode) {
+            std::cout << green("[GitSentry] No new findings since baseline.\n");
+        } else if (historyScan) {
             std::cout << green("[GitSentry] No secrets detected in git history.\n");
         } else {
             std::cout << green("[GitSentry] No secrets detected. Safe to commit.\n");
@@ -193,13 +256,19 @@ int Scanner::run(bool fullScan,
         }
 
         if (hasBlocker) {
-            if (historyScan) {
+            if (diffMode) {
+                std::cerr << red("[GitSentry] New critical findings detected since baseline.\n");
+            } else if (historyScan) {
                 std::cerr << red("[GitSentry] Critical secrets found in git history.\n");
             } else {
                 std::cerr << red("[GitSentry] Commit blocked due to critical findings.\n");
             }
         } else {
-            std::cerr << yellow("[GitSentry] Only warning/info findings detected. Not blocking.\n");
+            if (diffMode) {
+                std::cerr << yellow("[GitSentry] Only new warning/info findings detected since baseline.\n");
+            } else {
+                std::cerr << yellow("[GitSentry] Only warning/info findings detected. Not blocking.\n");
+            }
         }
     }
 

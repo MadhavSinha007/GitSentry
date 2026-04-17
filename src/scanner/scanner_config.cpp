@@ -7,6 +7,26 @@
 #include <fstream>
 #include <cctype>
 #include <regex>
+#include <sstream>
+#include <cstdint>
+
+// Helper function to compute FNV-1a 64-bit hash of a string.
+// Used for stable baseline fingerprinting without storing raw secrets.
+static std::string fnv1a64(const std::string& s)
+{
+    const uint64_t offset = 14695981039346656037ull;
+    const uint64_t prime  = 1099511628211ull;
+
+    uint64_t hash = offset;
+    for (unsigned char c : s) {
+        hash ^= c;
+        hash *= prime;
+    }
+
+    std::ostringstream oss;
+    oss << std::hex << hash;
+    return oss.str();
+}
 
 // Constructor — load config + compile patterns
 Scanner::Scanner(const std::string &cfgPath)
@@ -127,13 +147,16 @@ std::vector<DetectionResult> Scanner::scanLine(
             continue;
 
         std::string masked = maskSecret(found);
+        std::string fingerprint = fnv1a64(found);
+
         results.push_back({
             file,
             lineNum,
             pat.name,
             masked,
             score,
-            pat.severity
+            pat.severity,
+            fingerprint
         });
 
         // Early exit for very strong matches

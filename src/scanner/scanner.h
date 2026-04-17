@@ -12,6 +12,7 @@ struct DetectionResult
     std::string masked;
     int score;
     std::string severity;
+    std::string fingerprint;
 };
 
 struct ScanStatsResult
@@ -25,13 +26,16 @@ class Scanner
 {
 public:
     explicit Scanner(const std::string &configPath);
+
     int run(bool fullScan,
             bool jsonOutput = false,
             bool historyScan = false,
             const std::string &since = "",
-            bool fixMode = false);
+            bool fixMode = false,
+            bool diffMode = false);
 
     ScanStatsResult scanHistory(const std::string &since = "");
+    int saveBaseline(const std::string &path = ".gitsentry_baseline");
 
 private:
     nlohmann::json config_;

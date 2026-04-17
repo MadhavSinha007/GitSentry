@@ -36,12 +36,14 @@ void printHelp()
               << "Commands:\n"
               << "  install                         Install pre-commit and pre-push hooks\n"
               << "  uninstall                       Remove git hooks\n"
+              << "  baseline                        Save baseline of current findings\n"
               << "  scan                            Scan staged changes (used by pre-commit)\n"
               << "  scan --full                     Scan entire repository (used by pre-push)\n"
               << "  scan --json                     Scan staged changes and output JSON\n"
+              << "  scan --fix                      Scan staged changes and interactively remove detected lines\n"
+              << "  scan --diff                     Show only new findings vs baseline\n"
               << "  scan --history                  Scan full git history\n"
               << "  scan --history --since=<time>   Scan git history since a time\n"
-              << "  scan --fix                      Scan staged changes and interactively remove detected lines\n"
               << "  config                          Show current patterns config\n"
               << "  help, --help, -h                Show help\n"
               << "  --version, -v                   Show version\n";
@@ -78,12 +80,23 @@ int main(int argc, char *argv[])
     if (cmd == "config")
         return CLI::showConfig();
 
+    if (cmd == "baseline")
+    {
+        std::string configPath = resolveConfigPath();
+        if (configPath.empty())
+            return 1;
+
+        Scanner scanner(configPath);
+        return scanner.saveBaseline();
+    }
+
     if (cmd == "scan")
     {
         bool full = false;
         bool jsonOut = false;
         bool history = false;
         bool fixMode = false;
+        bool diffMode = false;
         std::string sinceArg;
 
         for (int i = 2; i < argc; i++)
@@ -98,6 +111,8 @@ int main(int argc, char *argv[])
                 history = true;
             else if (arg == "--fix")
                 fixMode = true;
+            else if (arg == "--diff")
+                diffMode = true;
             else if (arg.rfind("--since=", 0) == 0)
                 sinceArg = arg.substr(8);
         }
@@ -114,12 +129,18 @@ int main(int argc, char *argv[])
             return 1;
         }
 
+        if (diffMode && history)
+        {
+            std::cerr << "[GitSentry] ERROR: --diff does not support --history right now\n";
+            return 1;
+        }
+
         std::string configPath = resolveConfigPath();
         if (configPath.empty())
             return 1;
 
         Scanner scanner(configPath);
-        return scanner.run(full, jsonOut, history, sinceArg, fixMode);
+        return scanner.run(full, jsonOut, history, sinceArg, fixMode, diffMode);
     }
 
     std::cerr << "[GitSentry] Unknown command: " << cmd << "\n";
