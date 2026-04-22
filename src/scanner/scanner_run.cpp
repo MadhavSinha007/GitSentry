@@ -25,6 +25,11 @@ static std::set<std::string> loadBaseline(const std::string& path)
     return known;
 }
 
+static bool shouldBlock(const DetectionResult& r)
+{
+    return r.severity == "critical" || r.score >= 90;
+}
+
 // Save baseline of current full-repo findings
 int Scanner::saveBaseline(const std::string& path)
 {
@@ -137,7 +142,7 @@ int Scanner::run(bool fullScan,
 
     bool hasBlocker = false;
     for (const auto& r : results) {
-        if (r.severity == "critical") {
+        if (shouldBlock(r)) {
             hasBlocker = true;
             break;
         }
@@ -198,7 +203,7 @@ int Scanner::run(bool fullScan,
             }
 
             std::string label;
-            if (r.severity == "critical") {
+            if (shouldBlock(r)) {
                 label = red("[CRITICAL]");
             } else if (r.severity == "warning") {
                 label = yellow("[WARNING ]");
@@ -266,13 +271,13 @@ int Scanner::run(bool fullScan,
 
         if (hasBlocker) {
             if (diffMode) {
-                std::cerr << red("[GitSentry] New critical findings detected since baseline.\n");
+                std::cerr << red("[GitSentry] New blocking findings detected since baseline.\n");
             } else if (historyScan) {
-                std::cerr << red("[GitSentry] Critical secrets found in git history.\n");
+                std::cerr << red("[GitSentry] Blocking secrets found in git history.\n");
             } else if (pushMode) {
-                std::cerr << red("[GitSentry] Push blocked due to critical findings in pushed commits.\n");
+                std::cerr << red("[GitSentry] Push blocked due to blocking findings in pushed commits.\n");
             } else {
-                std::cerr << red("[GitSentry] Commit blocked due to critical findings.\n");
+                std::cerr << red("[GitSentry] Commit blocked due to blocking findings.\n");
             }
         } else {
             if (diffMode) {

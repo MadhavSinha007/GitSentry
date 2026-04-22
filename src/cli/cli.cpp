@@ -1,4 +1,3 @@
-// src/cli.cpp  (installHooks excerpt)
 #include "cli.h"
 #include <fstream>
 #include <iostream>
@@ -30,13 +29,11 @@ int CLI::installHooks() {
         "#!/bin/sh\nGitSentry scan\n");
 
     writeHook(".git/hooks/pre-push",
-        "#!/bin/sh\nGitSentry scan --full\n");
+        "#!/bin/sh\nGitSentry scan --push\n");
 
     std::cout << "[GitSentry] Hooks installed.\n";
     return 0;
 }
-
-
 
 int CLI::uninstallHooks() {
     namespace fs = std::filesystem;
@@ -50,7 +47,6 @@ int CLI::uninstallHooks() {
     std::cout << "[GitSentry] hooks removed from project\n";
     return 0;
 }
-
 
 int CLI::showConfig() {
     std::ifstream f("config/patterns.json");

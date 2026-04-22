@@ -4,10 +4,17 @@
   "scan_extensions": [
     ".cpp",
     ".h",
+    ".hpp",
+    ".c",
+    ".cc",
     ".py",
     ".js",
+    ".jsx",
     ".ts",
+    ".tsx",
     ".env",
+    ".env.local",
+    ".env.production",
     ".yml",
     ".yaml",
     ".json",
@@ -15,12 +22,22 @@
     ".sh",
     ".rb",
     ".go",
-    ".rs"
+    ".rs",
+    ".java",
+    ".kt",
+    ".php",
+    ".properties"
   ],
   "ignore_paths": [
     "tests/",
+    "test/",
     "node_modules/",
     ".git/",
+    "third_party/",
+    "vendor/",
+    "dist/",
+    "build/",
+    "coverage/",
     "config/patterns.json",
     "README.md",
     "package-lock.json",
@@ -31,62 +48,98 @@
     {
       "name": "AWS Access Key",
       "regex": "AKIA[0-9A-Z]{16}",
-      "confidence": 90,
+      "confidence": 95,
       "severity": "critical"
     },
     {
-      "name": "GitHub Token",
-      "regex": "ghp_[A-Za-z0-9]{36}",
+      "name": "AWS STS Key",
+      "regex": "ASIA[0-9A-Z]{16}",
+      "confidence": 95,
+      "severity": "critical"
+    },
+    {
+      "name": "Google API Key",
+      "regex": "AIza[0-9A-Za-z\\-_]{35}",
+      "confidence": 95,
+      "severity": "critical"
+    },
+    {
+      "name": "GitHub Personal Access Token",
+      "regex": "gh[pousr]_[A-Za-z0-9_]{36,255}",
+      "confidence": 95,
+      "severity": "critical"
+    },
+    {
+      "name": "GitHub Fine-Grained PAT",
+      "regex": "github_pat_[A-Za-z0-9_]{20,255}",
       "confidence": 95,
       "severity": "critical"
     },
     {
       "name": "Stripe Secret Key",
-      "regex": "sk_live_[0-9a-zA-Z]{24}",
-      "confidence": 90,
-      "severity": "critical"
-    },
-    {
-      "name": "Generic API Key",
-      "regex": "[aA][pP][iI][_-]?[kK][eE][yY][\\s]*[=:][\\s]*['\"]?[A-Za-z0-9_\\-]{20,}",
-      "confidence": 50,
-      "severity": "warning"
-    },
-    {
-      "name": "Google API Key",
-      "regex": "AIza[0-9A-Za-z\\-_]{35}",
+      "regex": "sk_(live|test)_[0-9a-zA-Z]{16,99}",
       "confidence": 90,
       "severity": "critical"
     },
     {
       "name": "Slack Token",
-      "regex": "xox[baprs]-[0-9a-zA-Z]{10,48}",
-      "confidence": 90,
-      "severity": "critical"
-    },
-    {
-      "name": "JWT Token",
-      "regex": "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}",
-      "confidence": 80,
-      "severity": "warning"
-    },
-    {
-      "name": "Private Key",
-      "regex": "-----BEGIN (RSA|EC) PRIVATE KEY",
+      "regex": "xox[baprs]-[0-9A-Za-z-]{10,200}",
       "confidence": 95,
       "severity": "critical"
     },
     {
+      "name": "JWT Token",
+      "regex": "eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}",
+      "confidence": 90,
+      "severity": "critical"
+    },
+    {
+      "name": "Bearer Token",
+      "regex": "Bearer\\s+[A-Za-z0-9\\-._~+/]+=*",
+      "confidence": 90,
+      "severity": "critical"
+    },
+    {
+      "name": "Private Key Header",
+      "regex": "-----BEGIN (RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----",
+      "confidence": 100,
+      "severity": "critical"
+    },
+    {
       "name": "Database URL",
-      "regex": "postgres://[^\\s]+",
+      "regex": "(postgres|postgresql|mysql|mongodb(\\+srv)?|redis):\\/\\/[^\\s'\"]+",
       "confidence": 85,
-      "severity": "warning"
+      "severity": "critical"
     },
     {
       "name": "Discord Token",
       "regex": "[MN][A-Za-z0-9]{23}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27}",
-      "confidence": 85,
+      "confidence": 90,
       "severity": "critical"
+    },
+    {
+      "name": "Generic Secret Assignment",
+      "regex": "(secret|token|password|passwd|pwd|client_secret|access_token|refresh_token|auth_token|api_key)[A-Za-z0-9_\\-]*\\s*[=:]\\s*['\"]?[A-Za-z0-9_\\-./+=]{16,}['\"]?",
+      "confidence": 78,
+      "severity": "warning"
+    },
+    {
+      "name": "Authorization Header Assignment",
+      "regex": "authorization\\s*[=:]\\s*['\"]?(bearer\\s+)?[A-Za-z0-9_\\-./+=]{16,}['\"]?",
+      "confidence": 82,
+      "severity": "critical"
+    },
+    {
+      "name": "Client Secret JSON Field",
+      "regex": "\"client_secret\"\\s*:\\s*\"[^\"]{12,}\"",
+      "confidence": 90,
+      "severity": "critical"
+    },
+    {
+      "name": "API Key JSON Field",
+      "regex": "\"(api[_-]?key|token|secret|access[_-]?token|refresh[_-]?token)\"\\s*:\\s*\"[^\"]{16,}\"",
+      "confidence": 82,
+      "severity": "warning"
     }
   ]
 }
