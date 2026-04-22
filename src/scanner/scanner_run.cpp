@@ -7,7 +7,6 @@
 #include <fstream>
 #include <set>
 
-// Load baseline file into a set of known findings
 static std::set<std::string> loadBaseline(const std::string& path)
 {
     std::set<std::string> known;
@@ -25,12 +24,6 @@ static std::set<std::string> loadBaseline(const std::string& path)
     return known;
 }
 
-static bool shouldBlock(const DetectionResult& r)
-{
-    return r.severity == "critical" || r.score >= 90;
-}
-
-// Save baseline of current full-repo findings
 int Scanner::saveBaseline(const std::string& path)
 {
     int filesScanned = 0;
@@ -53,7 +46,6 @@ int Scanner::saveBaseline(const std::string& path)
     return 0;
 }
 
-// run() — entry point for scan / scan --full / scan --history / scan --fix / scan --diff / scan --push
 int Scanner::run(bool fullScan,
                  bool jsonOutput,
                  bool historyScan,
@@ -122,14 +114,9 @@ int Scanner::run(bool fullScan,
         std::vector<DetectionResult> filtered;
 
         for (const auto& r : results) {
-            std::string key = r.file + ":" +
-                              r.patternName + ":" +
-                              r.fingerprint;
-
-            if (known.count(key))
-                continue;
-
-            filtered.push_back(r);
+            std::string key = r.file + ":" + r.patternName + ":" + r.fingerprint;
+            if (!known.count(key))
+                filtered.push_back(r);
         }
 
         results = std::move(filtered);
@@ -142,7 +129,7 @@ int Scanner::run(bool fullScan,
 
     bool hasBlocker = false;
     for (const auto& r : results) {
-        if (shouldBlock(r)) {
+        if (r.severity == "critical" || r.score >= 85) {
             hasBlocker = true;
             break;
         }
@@ -203,9 +190,9 @@ int Scanner::run(bool fullScan,
             }
 
             std::string label;
-            if (shouldBlock(r)) {
+            if (r.severity == "critical" || r.score >= 85) {
                 label = red("[CRITICAL]");
-            } else if (r.severity == "warning") {
+            } else if (r.severity == "warning" || r.score >= 65) {
                 label = yellow("[WARNING ]");
             } else {
                 label = green("[INFO    ]");
@@ -281,11 +268,11 @@ int Scanner::run(bool fullScan,
             }
         } else {
             if (diffMode) {
-                std::cerr << yellow("[GitSentry] Only new warning/info findings detected since baseline.\n");
+                std::cerr << yellow("[GitSentry] Only non-blocking findings detected since baseline.\n");
             } else if (pushMode) {
-                std::cerr << yellow("[GitSentry] Only warning/info findings detected in pushed commits. Not blocking.\n");
+                std::cerr << yellow("[GitSentry] Only non-blocking findings detected in pushed commits. Not blocking.\n");
             } else {
-                std::cerr << yellow("[GitSentry] Only warning/info findings detected. Not blocking.\n");
+                std::cerr << yellow("[GitSentry] Only non-blocking findings detected. Not blocking.\n");
             }
         }
     }
